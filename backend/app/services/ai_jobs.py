@@ -153,6 +153,32 @@ async def requeue_stale_ai_jobs(
     return len(jobs)
 
 
+async def _save_failure_message(db: AsyncSession, conversation_id: int) -> None:
+    """Создаёт AI-сообщение с fallback-текстом когда джоба исчерпала все попытки.
+
+    Без этого пользователь видит бесконечный спиннер — conversation.status
+    становится "active", но AI-сообщения нет.
+    """
+    if await has_ai_response_after_latest_user(db, conversation_id):
+        return
+    from app.models.message import Message
+
+    db.add(
+        Message(
+            conversation_id=conversation_id,
+            role="ai",
+            content=(
+                "Не удалось подготовить автоматический ответ. "
+                "Создайте запрос в поддержку — специалист поможет разобраться."
+            ),
+            ai_confidence=0.0,
+            ai_escalate=True,
+            requires_escalation=True,
+        )
+    )
+    await db.flush()
+
+
 async def process_ai_job(db: AsyncSession, job: AIJob) -> None:
     if await has_ai_response_after_latest_user(db, job.conversation_id):
         conversation = await db.get(Conversation, job.conversation_id)
@@ -166,6 +192,8 @@ async def process_ai_job(db: AsyncSession, job: AIJob) -> None:
         await generate_ai_message(db, job.conversation_id)
     except Exception as exc:
         await fail_ai_job(db, job, exc)
+        if job.status == AI_JOB_FAILED:
+            await _save_failure_message(db, job.conversation_id)
         return
 
     await finish_ai_job(db, job)

@@ -317,6 +317,21 @@ export function ChatPage() {
     setDialogHistoryExpanded(false);
   }, [activeTicket?.id, hasPendingEscalationPrompt]);
 
+  // Фиксируем, что isAiProcessing был true в течение текущего ожидания.
+  // Нужно для определения перехода true→false без ложного срабатывания
+  // в короткое окно между setAwaitingAiConversationId и первым рефетчем
+  // conversations (когда isAiProcessing ещё false из кеша).
+  const sawAiProcessingRef = useRef(false);
+  useEffect(() => {
+    if (!isAwaitingAiResponse) {
+      sawAiProcessingRef.current = false;
+      return;
+    }
+    if (isAiProcessing) {
+      sawAiProcessingRef.current = true;
+    }
+  }, [isAwaitingAiResponse, isAiProcessing]);
+
   useEffect(() => {
     if (!isAwaitingAiResponse) {
       return;
@@ -335,8 +350,20 @@ export function ChatPage() {
 
     if (latestUserMessageId > 0 && latestAiMessageId > latestUserMessageId) {
       setAwaitingAiConversationId(undefined);
+    } else if (sawAiProcessingRef.current && !isAiProcessing && latestUserMessageId > 0) {
+      // Backend завершил обработку (переход ai_processing→active),
+      // но AI-сообщение не появилось — джоба упала окончательно.
+      setAwaitingAiConversationId(undefined);
     }
   }, [isAwaitingAiResponse, isAiProcessing, messages.data]);
+
+  // Страховочный таймаут: если через 3 минуты ответа нет — снимаем блок.
+  // Покрывает случай когда воркер не запущен и статус никогда не меняется.
+  useEffect(() => {
+    if (!isAwaitingAiResponse) return;
+    const timer = setTimeout(() => setAwaitingAiConversationId(undefined), 180_000);
+    return () => clearTimeout(timer);
+  }, [isAwaitingAiResponse]);
 
   useEffect(() => {
     if (activeTicket && awaitingAiConversationId === activeConversationId) {

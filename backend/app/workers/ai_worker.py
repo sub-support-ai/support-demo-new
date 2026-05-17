@@ -6,6 +6,8 @@ from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.metrics import record_job_duration
 from app.services.ai_jobs import (
+    AI_JOB_FAILED,
+    _save_failure_message,
     claim_next_ai_job,
     fail_ai_job,
     process_ai_job,
@@ -52,6 +54,8 @@ class AIWorker(BaseWorker):
                     job,
                     JobTimeoutError(f"AI job exceeded {JOB_TIMEOUT_SECONDS:.0f}s timeout"),
                 )
+                if job.status == AI_JOB_FAILED:
+                    await _save_failure_message(db, job.conversation_id)
             await db.commit()
         return True
 

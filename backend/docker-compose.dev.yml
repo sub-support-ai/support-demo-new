@@ -19,6 +19,7 @@ services:
 
   ai-worker:
     build: .
+    restart: on-failure
     env_file:
       - .env
     environment:
@@ -33,6 +34,7 @@ services:
 
   sla-worker:
     build: .
+    restart: on-failure
     env_file:
       - .env
     environment:
@@ -47,6 +49,7 @@ services:
 
   knowledge-embedding-worker:
     build: .
+    restart: on-failure
     env_file:
       - .env
     environment:
