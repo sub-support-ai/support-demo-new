@@ -28,6 +28,39 @@ from app.services.service_catalog import CatalogItem, detect_catalog_item, get_c
 
 logger = logging.getLogger(__name__)
 
+# Зеркало SECURITY_TRIGGER_TERMS из ai/ai-service/answerer.py.
+# Backend проверяет это ДО обращения к LLM-кэшу и AI-сервису,
+# чтобы кэшированный некорректный ответ никогда не вернулся пользователю.
+_SECURITY_TERMS = (
+    "фишинг", "подозрительное письмо", "подозрительная ссылка",
+    "странная ссылка", "вредоносная ссылка", "мошенническое письмо",
+    "просят пароль", "требуют пароль",
+    "ввести пароль", "ввести пароль по ссылке", "ввел пароль", "ввёл пароль", "вводить пароль",
+    "перешел по ссылке", "перешёл по ссылке", "перейти по ссылке", "пройти по ссылке",
+    "открыл ссылку", "ссылку открыл", "открыл вложение",
+    "компрометация", "скомпрометирован",
+    "письмо со ссылкой", "письмо с ссылкой", "письмо с просьбой", "письмо с требованием",
+    "прислали ссылку", "пришла ссылка",
+    "просят перейти", "нажмите на ссылку", "перейдите по ссылке",
+    "подтвердите данные", "подтвердите пароль", "верифицируйте", "проверьте аккаунт",
+    "угон аккаунта", "взломали почту", "взломали аккаунт", "не вводите пароль",
+    "якобы от it", "якобы от ит",
+)
+
+_SECURITY_SAFE_ANSWER = (
+    "Похоже на фишинг или подозрительное письмо. Не вводите пароль по ссылке "
+    "и не открывайте вложения. Если уже перешли по вредоносной ссылке или ввели "
+    "пароль, это может быть компрометация учётной записи. "
+    "Сохраните письмо и передайте его специалисту для проверки."
+)
+
+
+def _is_security_message(history: list[dict[str, str]]) -> bool:
+    text = " ".join(
+        m.get("content", "") for m in history if m.get("role") == "user"
+    ).casefold().replace("ё", "е")
+    return any(term.replace("ё", "е") in text for term in _SECURITY_TERMS)
+
 # ── ПСЕВДО-СТРИМИНГ ────────────────────────────────────────────────────────────
 # Вместо реального SSE/WebSocket-стриминга токенов мы имитируем прогресс
 # через последовательные обновления поля Conversation.ai_stage. Каждый
@@ -402,6 +435,38 @@ async def generate_ai_message(db: AsyncSession, conversation_id: int) -> Message
         raise ValueError(f"Conversation {conversation_id} not found")
 
     history = await load_history_for_ai(db, conversation_id)
+
+    # ── Security check — bypass KB, LLM cache, and AI service entirely ────────
+    # Проверяем ДО кэша: если старый ответ закэширован с неправильными словами
+    # (например при регрессии модели), он никогда не вернётся пользователю.
+    if _is_security_message(history):
+        ai_payload = {
+            "answer": _SECURITY_SAFE_ANSWER,
+            "confidence": 0.95,
+            "escalate": True,
+            "sources": [],
+        }
+        await _set_ai_stage(conversation_id, None)
+        # Пропускаем всю дальнейшую логику — сразу к записи сообщения.
+        # goto-эмуляция через вложенный else ниже невозможна, поэтому
+        # дублируем только минимально необходимую часть финализации.
+        requires_escalation = True
+        ai_message = Message(
+            conversation_id=conversation_id,
+            role="ai",
+            content=ai_payload["answer"],
+            ai_confidence=ai_payload["confidence"],
+            ai_escalate=True,
+            requires_escalation=True,
+        )
+        db.add(ai_message)
+        if conversation.status in {"ai_processing", "escalated"}:
+            conversation.status = "active"
+        from app.services.intake_requirements import build_intake_state
+        conversation.intake_state = build_intake_state(conversation.intake_state, history)
+        await db.flush()
+        await db.refresh(ai_message)
+        return ai_message
 
     # ── Policy check FIRST — escalation rules take priority over catalog ──────
     # Catalog detection scans all user messages in history, so a keyword from
