@@ -186,10 +186,7 @@ class SLAWorker(BaseWorker):
         except Exception:
             logger.exception("Metrics refresh failed")
 
-        # Всегда возвращаем True: это говорит BaseWorker, что надо сразу же
-        # подождать NOTIFY_TIMEOUT_SECONDS (= POLL_INTERVAL_SECONDS), а не
-        # немедленно вызывать следующую итерацию.
-        return True
+        return False
 
 
 _sla_worker = SLAWorker()

@@ -109,11 +109,17 @@ class BaseWorker(ABC):
                 # в очереди могут ещё быть задачи. Ждём только если очередь была
                 # пустой — тогда спим до уведомления или таймаута.
                 if not processed:
-                    with suppress(TimeoutError):
-                        await asyncio.wait_for(
-                            wake_queue.get(),
-                            timeout=self.NOTIFY_TIMEOUT_SECONDS,
-                        )
+                    stop_task = asyncio.ensure_future(self._stop_event.wait())
+                    queue_task = asyncio.ensure_future(wake_queue.get())
+                    _, pending = await asyncio.wait(
+                        {stop_task, queue_task},
+                        timeout=self.NOTIFY_TIMEOUT_SECONDS,
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for t in pending:
+                        t.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await t
 
             logger.info("%s: stopped", self.WORKER_NAME)
 
