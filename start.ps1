@@ -71,10 +71,13 @@ if (Test-Path (Join-Path $backendDir 'docker-compose.dev.yml')) {
     }
 }
 
-Write-Host 'Запуск AI-сервиса...'
-& (Join-Path $root 'ai\start.ps1')
+Write-Host 'Запуск AI-сервиса и backend параллельно...'
 
-Write-Host 'Запуск backend (docker compose)...'
+Start-Process powershell `
+    -WindowStyle Hidden `
+    -WorkingDirectory $root `
+    -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $root 'ai\start.ps1')
+
 Start-Process powershell `
     -WindowStyle Hidden `
     -WorkingDirectory $backendDir `
@@ -89,6 +92,14 @@ if (-not (Wait-ForHttp -Uri 'http://localhost:8000/healthcheck' -TimeoutSeconds 
 }
 else {
     Write-Host 'Backend OK' -ForegroundColor Green
+}
+
+Write-Host 'Проверка AI-сервиса...'
+if (-not (Wait-ForHttp -Uri 'http://localhost:8001/healthcheck' -TimeoutSeconds 120)) {
+    Write-Host 'AI-сервис не ответил на /healthcheck (Ollama может грузиться дольше).' -ForegroundColor Yellow
+}
+else {
+    Write-Host 'AI-сервис OK' -ForegroundColor Green
 }
 
 $frontendDir = Join-Path $root 'frontend'
