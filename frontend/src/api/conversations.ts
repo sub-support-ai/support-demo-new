@@ -52,7 +52,7 @@ export function useMessages(conversationId?: number, aiProcessing = false) {
       return data;
     },
     enabled: Boolean(conversationId),
-    refetchInterval:
+    refetchInterval: (_query) =>
       aiProcessing && document.visibilityState === "visible" ? 2000 : false,
   });
 }

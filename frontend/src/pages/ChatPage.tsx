@@ -336,7 +336,7 @@ export function ChatPage() {
     if (latestUserMessageId > 0 && latestAiMessageId > latestUserMessageId) {
       setAwaitingAiConversationId(undefined);
     }
-  }, [isAwaitingAiResponse, messages.data]);
+  }, [isAwaitingAiResponse, isAiProcessing, messages.data]);
 
   useEffect(() => {
     if (activeTicket && awaitingAiConversationId === activeConversationId) {
