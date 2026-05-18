@@ -595,6 +595,16 @@ async def generate_ai_message(db: AsyncSession, conversation_id: int) -> Message
         )
 
     await db.flush()
+
+    # article = KnowledgeArticle(
+    # department="IT",
+    # title="Автоматический ответ", # Явно задаём обязательное поле
+    # body="Результат обработки...",
+    # is_active=True
+    # )
+    # db.add(article)
+    # await db.flush()  # → Данные валидны, ошибка не возникнет
+
     await db.refresh(ai_message)
     return ai_message
 

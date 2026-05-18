@@ -1,8 +1,0 @@
-2026-05-17T11:56:09.4420000Z Evaluating lint-and-test.if
-2026-05-17T11:56:09.4420000Z Evaluating: success()
-2026-05-17T11:56:09.4420000Z Result: true
-2026-05-17T11:56:09.4440000Z Requested labels: ubuntu-latest
-2026-05-17T11:56:09.4440000Z Job defined at: sub-support-ai/support-demo/.github/workflows/ci.yml@refs/heads/main
-2026-05-17T11:56:09.4440000Z Waiting for a runner to pick up this job...
-2026-05-17T11:56:09.4560000Z Job is waiting for a hosted runner to come online.
-2026-05-17T11:56:09.4570000Z Job is about to start running on the hosted runner: GitHub Actions 1000000329

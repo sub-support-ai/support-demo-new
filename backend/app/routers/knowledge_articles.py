@@ -30,6 +30,7 @@ from app.services.knowledge_embedding_jobs import (
     enqueue_knowledge_embedding_job,
     notify_knowledge_embedding_jobs_channel,
 )
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -146,6 +147,9 @@ async def create_knowledge_article(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_role("admin")),
 ):
+    if not payload.title:
+        raise HTTPException(status_code=400, detail="Поле 'title' обязательно")
+
     article = KnowledgeArticle(
         department=payload.department,
         request_type=payload.request_type,
@@ -167,7 +171,19 @@ async def create_knowledge_article(
         is_active=payload.is_active,
     )
     db.add(article)
-    await db.flush()
+
+    try:
+        await db.flush()
+    except IntegrityError as e:
+        await db.rollback()  # Снимаем блокировку сессии
+        raise HTTPException(status_code=400, detail="Ошибка схемы БД: проверьте обязательные поля")
+
+    # ✅ 3. Фиксируем транзакцию (если ваша зависимость get_db не делает commit автоматически)
+    await db.commit()
+    await db.refresh(article)
+
+    # await db.flush()
+
     await sync_knowledge_article_index(db, article)
     # Авто-enqueue embedding-job: без него только что созданная статья будет
     # видна только в FTS, а в семантическом поиске не появится до ручного
