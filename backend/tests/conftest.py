@@ -87,6 +87,13 @@ test_engine = create_async_engine(
 TestSessionLocal = async_sessionmaker(bind=test_engine, expire_on_commit=False)
 
 
+async def _clear_test_database(session: AsyncSession) -> None:
+    """Remove rows committed by API handlers so tests stay isolated."""
+    for table in reversed(Base.metadata.sorted_tables):
+        await session.execute(table.delete())
+    await session.commit()
+
+
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_db():
     """Создаём все таблицы перед тестами, удаляем после.
@@ -155,8 +162,16 @@ def _reset_rate_limiter():
 async def db_session() -> AsyncSession:
     """Сессия с rollback после каждого теста — тесты изолированы."""
     async with TestSessionLocal() as session:
-        yield session
-        await session.rollback()
+        from app.services.knowledge_cache import get_knowledge_cache
+
+        get_knowledge_cache().clear()
+        await _clear_test_database(session)
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            get_knowledge_cache().clear()
+            await _clear_test_database(session)
 
 
 @pytest_asyncio.fixture

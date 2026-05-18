@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -30,7 +31,6 @@ from app.services.knowledge_embedding_jobs import (
     enqueue_knowledge_embedding_job,
     notify_knowledge_embedding_jobs_channel,
 )
-from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -174,9 +174,12 @@ async def create_knowledge_article(
 
     try:
         await db.flush()
-    except IntegrityError as e:
+    except IntegrityError:
         await db.rollback()  # Снимаем блокировку сессии
-        raise HTTPException(status_code=400, detail="Ошибка схемы БД: проверьте обязательные поля")
+        raise HTTPException(
+            status_code=400,
+            detail="Ошибка схемы БД: проверьте обязательные поля",
+        ) from None
 
     # ✅ 3. Фиксируем транзакцию (если ваша зависимость get_db не делает commit автоматически)
     await db.commit()
