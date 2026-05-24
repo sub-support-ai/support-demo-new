@@ -137,7 +137,7 @@ function QueueCard({
 function UrgentTicketRow({ ticket }: { ticket: Ticket }) {
   const sla = slaLabel(ticket);
   return (
-    <Paper withBorder p="sm" style={{ borderColor: "#ffc9c9", background: "#fff5f5" }}>
+    <Paper withBorder p="sm" className="urgent-ticket-row">
       <Group justify="space-between" align="center" wrap="nowrap" gap="sm">
         <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
           <Group gap="xs" wrap="nowrap">

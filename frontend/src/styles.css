@@ -362,24 +362,6 @@ body {
   min-height: 0;
 }
 
-.messages-scroll .mantine-ScrollArea-viewport {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(81, 97, 93, 0.18) transparent;
-}
-
-.messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar {
-  width: 6px;
-}
-
-.messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(81, 97, 93, 0.16);
-}
-
 .messages-scroll .mantine-ScrollArea-scrollbar {
   width: 6px;
   padding: 1px;
@@ -572,16 +554,22 @@ body {
 .quick-scenarios {
   padding-top: 6px;
   border-top: 1px solid #eef2f0;
+  flex-wrap: wrap;
 }
 
+/* Компактные чипы-подсказки: одна строка, текст по центру, пилюля.
+   Описание сценария — в тултипе, чтобы не занимать высоту. */
 .quick-scenario {
-  flex: 1 1 180px;
-  min-width: 160px;
-  padding: 6px 8px;
-  text-align: left;
+  flex: 0 1 auto;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-align: center;
   cursor: pointer;
   border: 1px solid #dce9e5;
-  border-radius: var(--radius-panel);
+  border-radius: 999px;
   background: #f8fbfa;
   transition:
     border-color 120ms ease,
@@ -637,7 +625,7 @@ body {
   left: 2px;
   width: 2px;
   border-radius: 999px;
-  background: #dce5e2;
+  background: #e3e8e6;
   transition:
     background-color 0.15s ease,
     width 0.15s ease,
@@ -883,6 +871,12 @@ body {
   color: #66736f;
 }
 
+/* Пустое состояние внутри чат-поверхности тянется на всю высоту,
+   из-за чего «Нет сообщений» оказывается ровно по центру, а не вверху. */
+.chat-empty {
+  flex: 1 1 auto;
+}
+
 .empty-state.tickets {
   min-height: 140px;
 }
@@ -1001,58 +995,68 @@ body {
   background: #f0fbf6;
 }
 
+/* Строка просроченного тикета (оператор). Раньше фон был задан инлайном
+   и не реагировал на тёмную тему — вынесено в класс с тёмным вариантом. */
+.urgent-ticket-row {
+  border-color: #ffc9c9;
+  background: #fff5f5;
+}
+
 :root[data-mantine-color-scheme="dark"] {
-  --mantine-color-text: #f1f5f9;
-  --mantine-color-dimmed: #b7c0cc;
-  --mantine-color-placeholder: #aeb7c4;
-  --mantine-color-default: #1c212b;
-  --mantine-color-default-hover: #242a36;
-  --mantine-color-default-border: #343b49;
+  /* Нейтрально-серая палитра под штатный навбар Mantine (#242424).
+     Раньше тут была сине-серая гамма (#1c212b…), из-за чего фон уходил
+     в синеву — здесь R≈G≈B, тон чисто серый. */
+  --mantine-color-text: #ececec;
+  --mantine-color-dimmed: #a6a6a6;
+  --mantine-color-placeholder: #8c8c8c;
+  --mantine-color-default: #242424;
+  --mantine-color-default-hover: #2e2e2e;
+  --mantine-color-default-border: #3a3a3a;
 }
 
 [data-mantine-color-scheme="dark"] {
-  color: #f1f5f9;
-  background: #111318;
+  color: #ececec;
+  background: #161616;
 }
 
 [data-mantine-color-scheme="dark"] body {
-  color: #f1f5f9;
-  background: #111318;
+  color: #ececec;
+  background: #161616;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Title-root {
-  color: #f8fafc;
+  color: #f5f5f5;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Text-root[data-dimmed] {
-  color: #b7c0cc !important;
+  color: #a6a6a6 !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Text-root[style*="var(--mantine-color-dimmed)"] {
-  color: #b7c0cc !important;
+  color: #a6a6a6 !important;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Input-label,
 [data-mantine-color-scheme="dark"] .mantine-Input-description {
-  color: #c5ceda;
+  color: #c4c4c4;
 }
 
 [data-mantine-color-scheme="dark"] .mantine-Input-input,
 [data-mantine-color-scheme="dark"] .mantine-Textarea-input,
 [data-mantine-color-scheme="dark"] .mantine-Select-input {
-  color: #f1f5f9;
-  border-color: #343b49;
-  background: #151922;
+  color: #ececec;
+  border-color: #3a3a3a;
+  background: #1c1c1c;
 }
 
 [data-mantine-color-scheme="dark"] .app-header {
-  border-bottom-color: #343b49;
-  background: #151922;
+  border-bottom-color: #3a3a3a;
+  background: #1c1c1c;
 }
 
 [data-mantine-color-scheme="dark"] .app-main,
 [data-mantine-color-scheme="dark"] .app-main.chat-main {
-  background: #111318;
+  background: #161616;
 }
 
 [data-mantine-color-scheme="dark"] .chat-panel,
@@ -1066,8 +1070,8 @@ body {
 [data-mantine-color-scheme="dark"] .knowledge-list-panel,
 [data-mantine-color-scheme="dark"] .knowledge-editor-panel,
 [data-mantine-color-scheme="dark"] .jobs-table-panel {
-  border-color: #343b49;
-  background: #1a1f29;
+  border-color: #3a3a3a;
+  background: #242424;
 }
 
 [data-mantine-color-scheme="dark"] .chat-surface,
@@ -1077,8 +1081,8 @@ body {
 [data-mantine-color-scheme="dark"] .ticket-reroute-panel,
 [data-mantine-color-scheme="dark"] .dispatch-strip,
 [data-mantine-color-scheme="dark"] .quick-scenario {
-  border-color: #343b49;
-  background: #151922;
+  border-color: #3a3a3a;
+  background: #1c1c1c;
 }
 
 [data-mantine-color-scheme="dark"] .message-bubble.ai,
@@ -1087,48 +1091,48 @@ body {
 [data-mantine-color-scheme="dark"] .conversation-item,
 [data-mantine-color-scheme="dark"] .draft-ticket-body,
 [data-mantine-color-scheme="dark"] .ticket-comment {
-  border-color: #343b49;
-  background: #202631;
+  border-color: #3a3a3a;
+  background: #2d2d2d;
 }
 
 [data-mantine-color-scheme="dark"] .message-bubble.user,
 [data-mantine-color-scheme="dark"] .conversation-item.active {
-  border-color: #3b82f6;
-  background: #1d2b3f;
+  border-color: #3a5950;
+  background: #232b28;
 }
 
 [data-mantine-color-scheme="dark"] .conversation-item:hover,
 [data-mantine-color-scheme="dark"] .quick-scenario:hover:not(:disabled),
 [data-mantine-color-scheme="dark"] .quick-scenario:focus-visible:not(:disabled),
 [data-mantine-color-scheme="dark"] .employee-ticket-row:hover {
-  border-color: #4b5565;
-  background: #242a36;
+  border-color: #525252;
+  background: #2e2e2e;
 }
 
 [data-mantine-color-scheme="dark"] .composer,
 [data-mantine-color-scheme="dark"] .draft-body-input {
-  border-color: #343b49;
-  background: #1a1f29 !important;
+  border-color: #3a3a3a;
+  background: #242424 !important;
 }
 
 [data-mantine-color-scheme="dark"] .draft-title-input:hover,
 [data-mantine-color-scheme="dark"] .draft-body-input:hover {
-  background-color: #202631 !important;
+  background-color: #2d2d2d !important;
 }
 
 [data-mantine-color-scheme="dark"] .draft-title-input:focus,
 [data-mantine-color-scheme="dark"] .draft-body-input:focus {
-  background-color: #151922 !important;
+  background-color: #1c1c1c !important;
 }
 
 [data-mantine-color-scheme="dark"] .employee-hero,
 [data-mantine-color-scheme="dark"] .agent-hero {
-  background: linear-gradient(135deg, #1a1f29 0%, #151922 75%);
+  background: linear-gradient(135deg, #242424 0%, #1c1c1c 75%);
 }
 
 [data-mantine-color-scheme="dark"] .employee-stat-card {
-  border-color: #343b49;
-  background: #1a1f29;
+  border-color: #3a3a3a;
+  background: #242424;
 }
 
 [data-mantine-color-scheme="dark"] .attention-card,
@@ -1139,18 +1143,19 @@ body {
 
 [data-mantine-color-scheme="dark"] .queue-summary-item,
 [data-mantine-color-scheme="dark"] .job-failure-row {
-  border-color: #343b49;
-  background: #1a1f29;
+  border-color: #3a3a3a;
+  background: #242424;
 }
 
-[data-mantine-color-scheme="dark"] .queue-summary-item.danger {
+[data-mantine-color-scheme="dark"] .queue-summary-item.danger,
+[data-mantine-color-scheme="dark"] .urgent-ticket-row {
   border-color: #713131;
   background: #241515;
 }
 
 [data-mantine-color-scheme="dark"] .knowledge-row.active td,
 [data-mantine-color-scheme="dark"] .notification-unread {
-  background: #1d2b3f;
+  background: #232b28;
 }
 
 [data-mantine-color-scheme="dark"] .draft-field-required .mantine-TextInput-input {
@@ -1158,17 +1163,36 @@ body {
   background-color: #21170f;
 }
 
-[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-viewport {
-  scrollbar-color: rgba(194, 211, 205, 0.2) transparent;
-}
-
-[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-thumb,
-[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar-thumb {
+[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-thumb {
   background: rgba(194, 211, 205, 0.22);
 }
 
 [data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-thumb:hover {
   background: rgba(77, 171, 146, 0.45);
+}
+
+/* Карточки, у которых в светлой теме фон #ffffff, но не было тёмного
+   варианта — иначе «Черновик запроса», строки сотрудника и мастер
+   светятся белым на тёмном фоне. */
+[data-mantine-color-scheme="dark"] .escalation-card {
+  background: #2d2d2d;
+}
+
+[data-mantine-color-scheme="dark"] .employee-ticket-row,
+[data-mantine-color-scheme="dark"] .wizard-shell {
+  border-color: #3a3a3a;
+  background: #242424;
+}
+
+/* Резайзер: в тёмной теме светлая полоска (#e3e8e6) выглядела как яркая
+   белая черта — приглушаем под фон, акцент только на hover. */
+[data-mantine-color-scheme="dark"] .chat-side-resizer::before {
+  background: #3a3a3a;
+}
+
+[data-mantine-color-scheme="dark"] .chat-side-resizer:hover::before,
+[data-mantine-color-scheme="dark"] .chat-side-resizer:focus-visible::before {
+  background: #4dab92;
 }
 
 @media (max-width: 960px) {

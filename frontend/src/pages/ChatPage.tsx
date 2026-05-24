@@ -153,12 +153,6 @@ const QUICK_SCENARIOS = [
     description: "Проверим типовой сценарий и подготовим заявку при необходимости.",
     prompt: "Еду в командировку, нужен VPN-доступ для работы. Что нужно сделать?",
   },
-  {
-    title: "Подозрительное письмо",
-    description: "AI даст инструкцию и предложит передать письмо в безопасность.",
-    prompt:
-      "Мне пришло подозрительное письмо со ссылкой. Помогите понять, что делать, и при необходимости передать в безопасность.",
-  },
 ];
 
 const DEFAULT_SIDE_PANEL_WIDTH = 480;
@@ -746,85 +740,79 @@ export function ChatPage() {
           ) : (
             <>
               <LoadingOverlay visible={messages.isFetching && !messages.data} />
-              <ScrollArea className="messages-scroll" type="auto">
-                <Stack gap={6} p={6}>
-                  {!messages.data?.length && (
-                    <div className="empty-state">
-                      <IconMessageCircle size={34} />
-                      <Text fw={600}>Нет сообщений</Text>
-                    </div>
-                  )}
-                  {messages.data?.map((message) => (
-                    <MessageBubble
-                      key={message.id}
-                      message={message}
-                      actionDisabled={composerDisabled || sendMessage.isPending}
-                      onActionPrompt={handleSend}
-                    />
-                  ))}
-                  {shouldPollMessages && (
-                    <div className="message-row ai">
-                      <Paper className="message-bubble ai thinking-bubble" withBorder>
-                        <Group gap="xs" mb={4} align="center">
-                          <Text size="xs" fw={600} c="dimmed">
-                            AI
-                          </Text>
-                        </Group>
-                        <Group gap={8} align="center">
-                          <span className="thinking-dots" aria-hidden>
-                            <span /> <span /> <span />
-                          </span>
-                          <Text size="sm" c="dimmed">
-                            {aiStageLabel}
-                          </Text>
-                        </Group>
-                      </Paper>
-                    </div>
-                  )}
-                  <div ref={bottomRef} />
-                </Stack>
-              </ScrollArea>
+              {!messages.data?.length && !shouldPollMessages ? (
+                <div className="empty-state chat-empty">
+                  <IconMessageCircle size={34} />
+                  <Text fw={600}>Нет сообщений</Text>
+                </div>
+              ) : (
+                <ScrollArea className="messages-scroll" type="auto">
+                  <Stack gap={6} p={6}>
+                    {messages.data?.map((message) => (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        actionDisabled={composerDisabled || sendMessage.isPending}
+                        onActionPrompt={handleSend}
+                      />
+                    ))}
+                    {shouldPollMessages && (
+                      <div className="message-row ai">
+                        <Paper className="message-bubble ai thinking-bubble" withBorder>
+                          <Group gap="xs" mb={4} align="center">
+                            <Text size="xs" fw={600} c="dimmed">
+                              AI
+                            </Text>
+                          </Group>
+                          <Group gap={8} align="center">
+                            <span className="thinking-dots" aria-hidden>
+                              <span /> <span /> <span />
+                            </span>
+                            <Text size="sm" c="dimmed">
+                              {aiStageLabel}
+                            </Text>
+                          </Group>
+                        </Paper>
+                      </div>
+                    )}
+                    <div ref={bottomRef} />
+                  </Stack>
+                </ScrollArea>
+              )}
               {activeConversation?.intake_state?.last_question && !shouldPollMessages && (
                 <Alert color="blue" variant="light" p={6} mx={6} mb={6}>
                   <Text size="sm">{activeConversation.intake_state.last_question}</Text>
                 </Alert>
               )}
-              {!messages.data?.length && !shouldPollMessages && (
-                <Stack gap={4} px={6} mb={6} className="quick-scenarios">
-                  <Group justify="space-between" gap="xs">
-                    <Text size="sm" fw={600}>
-                      Быстрые сценарии
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      один клик запускает диалог
-                    </Text>
-                  </Group>
-                  <Group gap="xs" align="stretch">
+              {!messages.data?.length &&
+                !shouldPollMessages &&
+                me.data?.role === "user" && (
+                  <Group gap={6} px={6} mb={6} className="quick-scenarios">
                     {QUICK_SCENARIOS.map((scenario) => (
-                      <button
+                      <Tooltip
                         key={scenario.title}
-                        type="button"
-                        className="quick-scenario"
-                        disabled={
-                          composerDisabled ||
-                          sendMessage.isPending ||
-                          createConversation.isPending
-                        }
-                        onClick={() => {
-                          void handleQuickScenario(scenario.prompt);
-                        }}
+                        label={scenario.description}
+                        withArrow
+                        openDelay={400}
                       >
-                        <Text size="sm" fw={600}>
+                        <button
+                          type="button"
+                          className="quick-scenario"
+                          disabled={
+                            composerDisabled ||
+                            sendMessage.isPending ||
+                            createConversation.isPending
+                          }
+                          onClick={() => {
+                            void handleQuickScenario(scenario.prompt);
+                          }}
+                        >
                           {scenario.title}
-                        </Text>
-                        <Text size="xs" c="dimmed" lineClamp={2}>
-                          {scenario.description}
-                        </Text>
-                      </button>
+                        </button>
+                      </Tooltip>
                     ))}
                   </Group>
-                </Stack>
-              )}
+                )}
               <Composer
                 loading={
                   (sendMessage.isPending && sendingConvId === activeConversationId) ||
