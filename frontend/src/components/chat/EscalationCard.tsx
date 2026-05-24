@@ -8,8 +8,8 @@ import {
   TextInput,
 } from "@mantine/core";
 import {
-  IconAlertTriangle,
   IconArrowRight,
+  IconClipboardList,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -46,6 +46,13 @@ const REQUEST_TYPES = [
     affectedItem: "Учетная запись",
     detailsLabel: "Система и логин",
     detailsPlaceholder: "Например: корпоративная почта, логин ivanov.i",
+  },
+  {
+    value: "security_incident",
+    label: "Инцидент ИБ / фишинг",
+    affectedItem: "Учётная запись",
+    detailsLabel: "Что произошло",
+    detailsPlaceholder: "Например: пришло подозрительное письмо со ссылкой, перешёл по ссылке",
   },
   {
     value: "hardware_broken",
@@ -115,6 +122,20 @@ export function EscalationCard({
     return REQUEST_TYPES.find((item) => item.value === requestType) ?? null;
   }, [requestType]);
   const intakeFields = useMemo(() => intakeState?.fields ?? {}, [intakeState?.fields]);
+  // Инцидент ИБ/фишинг — особый случай: «затронут» не ноутбук пользователя,
+  // а его учётная запись. Не подставляем основной актив, иначе тип запроса
+  // и объект расходятся (фишинг ↔ ThinkPad), что выглядит как ошибка AI.
+  const isSecurityContext = useMemo(
+    () => (intakeState?.department ?? "").toLowerCase() === "security",
+    [intakeState?.department],
+  );
+  // Фрагмент исходного сообщения, на основе которого AI собрал черновик —
+  // снимает «магию», откуда взялись значения полей, повышает доверие.
+  const sourceQuote = useMemo(() => {
+    const raw = String(intakeFields.problem ?? "").trim();
+    if (!raw) return "";
+    return raw.length > 90 ? `${raw.slice(0, 90)}…` : raw;
+  }, [intakeFields.problem]);
 
   useEffect(() => {
     if (!contextDefaults) {
@@ -123,14 +144,14 @@ export function EscalationCard({
     setRequesterName((current) => current || contextDefaults.requester_name);
     setRequesterEmail((current) => current || contextDefaults.requester_email);
     setOffice((current) => current || contextDefaults.office || null);
-    setAffectedItem(
-      (current) =>
-        current ||
-        (contextDefaults.primary_asset
-          ? displayAsset(contextDefaults.primary_asset)
-          : null),
-    );
-  }, [contextDefaults]);
+    setAffectedItem((current) => {
+      if (current) return current;
+      if (isSecurityContext) return "Учётная запись";
+      return contextDefaults.primary_asset
+        ? displayAsset(contextDefaults.primary_asset)
+        : null;
+    });
+  }, [contextDefaults, isSecurityContext]);
 
   useEffect(() => {
     if (selectedRequestType?.affectedItem) {
@@ -149,7 +170,10 @@ export function EscalationCard({
           item.affectedItem.toLowerCase().includes(requestTypeText))
       );
     });
-    setRequestType((current) => current || inferredType?.value || null);
+    // Security-контекст всегда классифицируем как инцидент ИБ — приоритетнее
+    // эвристики по тексту, чтобы фишинг не уехал в «Сброс пароля».
+    const resolvedType = isSecurityContext ? "security_incident" : inferredType?.value;
+    setRequestType((current) => current || resolvedType || null);
 
     const details = [
       intakeFields.problem,
@@ -160,7 +184,7 @@ export function EscalationCard({
       .filter(Boolean)
       .join("\n");
     setRequestDetails((current) => current || details);
-  }, [intakeFields, intakeState?.request_type]);
+  }, [intakeFields, intakeState?.request_type, isSecurityContext]);
 
   const officeOptions = useMemo(() => {
     const values = [
@@ -228,16 +252,21 @@ export function EscalationCard({
 
   return (
     <Alert
-      color="red"
+      color="gray"
       variant="light"
-      icon={<IconAlertTriangle size={18} />}
-      className="escalation-card"
+      icon={<IconClipboardList size={18} />}
+      classNames={{
+        root: "escalation-card",
+        wrapper: "escalation-card-wrapper",
+        body: "escalation-card-body",
+        message: "escalation-card-message",
+      }}
     >
-      <Stack gap="sm">
+      <Stack gap={6} className="escalation-stack">
         <div>
-          <Text fw={600}>Заполните карточку черновика</Text>
+          <Text fw={600}>Черновик запроса</Text>
           <Text size="sm" c="dimmed">
-            Уточните недостающие данные. Описание возьмём из диалога.
+            Проверьте данные — описание подтянули из диалога.
           </Text>
         </div>
 
@@ -332,9 +361,15 @@ export function EscalationCard({
           </Group>
         )}
 
+        {sourceQuote && (
+          <Text size="xs" c="dimmed">
+            AI заполнил на основе сообщения: «{sourceQuote}»
+          </Text>
+        )}
+
         <Group justify="flex-end">
           <Button
-            color="red"
+            color="teal"
             rightSection={<IconArrowRight size={16} />}
             loading={loading}
             disabled={disabled || !canSubmit}

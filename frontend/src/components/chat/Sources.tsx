@@ -46,6 +46,11 @@ export function Sources({ sources }: { sources?: Source[] | null }) {
             <Stack key={`${source.title}-${index}`} gap={4} className="source-item">
               <Group gap={8} wrap="nowrap" align="center">
                 <IconFileText size={14} />
+                {typeof source.article_id === "number" && (
+                  <Badge size="xs" variant="light" color="teal">
+                    KB-{source.article_id}
+                  </Badge>
+                )}
                 {source.url ? (
                   <Anchor href={source.url} target="_blank" size="xs">
                     {source.title}

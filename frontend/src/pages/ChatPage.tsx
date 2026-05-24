@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Badge,
   Button,
@@ -9,11 +10,13 @@ import {
   Stack,
   Text,
   Title,
+  Tooltip,
 } from "@mantine/core";
 import {
   IconClipboardList,
   IconMessageCircle,
   IconPlus,
+  IconUrgent,
 } from "@tabler/icons-react";
 import {
   type CSSProperties,
@@ -67,12 +70,28 @@ function formatConversationDate(value?: string | null) {
     return "Старый диалог";
   }
 
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
+  const time = new Intl.DateTimeFormat("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+
+  // Относительная дата — пользователю проще ориентироваться от «сегодня».
+  const startOfDay = (d: Date) => {
+    const out = new Date(d);
+    out.setHours(0, 0, 0, 0);
+    return out.getTime();
+  };
+  const today = startOfDay(new Date());
+  const day = startOfDay(date);
+  const dayMs = 86_400_000;
+  if (day === today) return `сегодня, ${time}`;
+  if (day === today - dayMs) return `вчера, ${time}`;
+
+  const dateLabel = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+  }).format(date);
+  return `${dateLabel}, ${time}`;
 }
 
 function getConversationDate(conversation: Conversation, tickets?: Ticket[]) {
@@ -117,6 +136,30 @@ const INTAKE_FIELD_LABELS: Record<string, string> = {
   what_user_did: "Что уже сделали",
   time_detected: "Когда обнаружили",
 };
+
+const QUICK_SCENARIOS = [
+  {
+    title: "Сброс пароля",
+    description: "AI уточнит систему и безопасный способ восстановления.",
+    prompt: "Забыл пароль от рабочей учётной записи. Помогите восстановить доступ.",
+  },
+  {
+    title: "Запрос доступа",
+    description: "Соберём систему, папку, роль и обоснование.",
+    prompt: "Нужно запросить доступ к рабочей системе или папке. Помогите оформить запрос.",
+  },
+  {
+    title: "VPN в поездке",
+    description: "Проверим типовой сценарий и подготовим заявку при необходимости.",
+    prompt: "Еду в командировку, нужен VPN-доступ для работы. Что нужно сделать?",
+  },
+  {
+    title: "Подозрительное письмо",
+    description: "AI даст инструкцию и предложит передать письмо в безопасность.",
+    prompt:
+      "Мне пришло подозрительное письмо со ссылкой. Помогите понять, что делать, и при необходимости передать в безопасность.",
+  },
+];
 
 const DEFAULT_SIDE_PANEL_WIDTH = 480;
 const MIN_SIDE_PANEL_WIDTH = 360;
@@ -223,6 +266,9 @@ export function ChatPage() {
   const [dialogHistoryExpanded, setDialogHistoryExpanded] = useState(false);
   const [sidePanelWidth, setSidePanelWidth] = useState(DEFAULT_SIDE_PANEL_WIDTH);
   const [wizardActiveFor, setWizardActiveFor] = useState<Set<number>>(new Set());
+  // Пользователь нажал «Срочно: нужен человек» — показываем форму эскалации
+  // сразу, не дожидаясь, пока AI сам решит передать запрос специалисту.
+  const [urgentEscalation, setUrgentEscalation] = useState(false);
 
   const activeConversation = useMemo(() => {
     return conversations.data?.find((item) => item.id === activeConversationId);
@@ -258,6 +304,23 @@ export function ChatPage() {
         )[0] ?? null
     );
   }, [activeConversationId, tickets.data]);
+
+  useEffect(() => {
+    if (!activeConversationId || !restoredTicket) {
+      return;
+    }
+
+    setDraftTickets((prev) => {
+      const current = prev[activeConversationId];
+      if (
+        current?.id === restoredTicket.id &&
+        current?.updated_at === restoredTicket.updated_at
+      ) {
+        return prev;
+      }
+      return { ...prev, [activeConversationId]: restoredTicket };
+    });
+  }, [activeConversationId, restoredTicket]);
 
   // draftTickets[activeConversationId] всегда привязан к нужному диалогу
   const activeTicket = draftTicket ?? restoredTicket;
@@ -300,6 +363,10 @@ export function ChatPage() {
   }, [activeConversationId, sortedConversations]);
 
   const messages = useMessages(activeConversationId, shouldPollMessages);
+  const messageVersion = useMemo(
+    () => messages.data?.map((message) => message.id).join(":") ?? "",
+    [messages.data],
+  );
   const latestEscalationMessageId = useMemo(() => {
     const escalationMessages =
       messages.data?.filter(
@@ -308,7 +375,7 @@ export function ChatPage() {
     return escalationMessages[escalationMessages.length - 1]?.id;
   }, [messages.data]);
   const hasPendingEscalationPrompt = Boolean(
-    latestEscalationMessageId && activeConversation && !activeTicket,
+    (latestEscalationMessageId || urgentEscalation) && activeConversation && !activeTicket,
   );
   const isRequestPanelMode = isDraftMode || hasPendingEscalationPrompt;
   const dialogHistoryCollapsed = isRequestPanelMode && !dialogHistoryExpanded;
@@ -316,6 +383,11 @@ export function ChatPage() {
   useEffect(() => {
     setDialogHistoryExpanded(false);
   }, [activeTicket?.id, hasPendingEscalationPrompt]);
+
+  // Сброс «срочной» эскалации при переключении диалога.
+  useEffect(() => {
+    setUrgentEscalation(false);
+  }, [activeConversationId]);
 
   // Фиксируем, что isAiProcessing был true в течение текущего ожидания.
   // Нужно для определения перехода true→false без ложного срабатывания
@@ -350,12 +422,16 @@ export function ChatPage() {
 
     if (latestUserMessageId > 0 && latestAiMessageId > latestUserMessageId) {
       setAwaitingAiConversationId(undefined);
-    } else if (sawAiProcessingRef.current && !isAiProcessing && latestUserMessageId > 0) {
-      // Backend завершил обработку (переход ai_processing→active),
-      // но AI-сообщение не появилось — джоба упала окончательно.
-      setAwaitingAiConversationId(undefined);
+      return;
     }
-  }, [isAwaitingAiResponse, isAiProcessing, messages.data]);
+
+    if (sawAiProcessingRef.current && !isAiProcessing && latestUserMessageId > 0) {
+      // Conversation может стать active на один refetch раньше, чем в кеш сообщений
+      // попадёт финальный AI-ответ. Не выключаем polling: иначе ответ виден только
+      // после перезагрузки страницы.
+      void messages.refetch();
+    }
+  }, [isAwaitingAiResponse, isAiProcessing, messages.data, messages.refetch]);
 
   // Страховочный таймаут: если через 3 минуты ответа нет — снимаем блок.
   // Покрывает случай когда воркер не запущен и статус никогда не меняется.
@@ -366,14 +442,15 @@ export function ChatPage() {
   }, [isAwaitingAiResponse]);
 
   useEffect(() => {
-    if (activeTicket && awaitingAiConversationId === activeConversationId) {
-      setAwaitingAiConversationId(undefined);
-    }
-  }, [activeConversationId, activeTicket, awaitingAiConversationId]);
-
-  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.data?.length, shouldPollMessages]);
+
+  useEffect(() => {
+    if (!activeConversationId || !activeTicket || !messageVersion) {
+      return;
+    }
+    void tickets.refetch();
+  }, [activeConversationId, activeTicket?.id, messageVersion, tickets.refetch]);
 
   async function ensureConversation() {
     const activeConversationExists =
@@ -400,10 +477,27 @@ export function ChatPage() {
       } else {
         setAwaitingAiConversationId(undefined);
       }
+      if (activeTicket) {
+        void tickets.refetch();
+      }
     } catch {
       // Ошибка уже хранится в mutation/query state и показывается в Alert.
     } finally {
       setSendingConvId(undefined);
+    }
+  }
+
+  async function handleQuickScenario(prompt: string) {
+    setComposerText("");
+    await handleSend(prompt);
+  }
+
+  async function handleUrgentEscalation() {
+    try {
+      await ensureConversation();
+      setUrgentEscalation(true);
+    } catch {
+      // Ошибка уже хранится в mutation state и показывается в Alert.
     }
   }
 
@@ -552,8 +646,7 @@ export function ChatPage() {
     me.error ||
     tickets.error;
   const requestContext = me.data?.request_context ?? null;
-  const showAiConfidence =
-    me.data?.role === "agent" || me.data?.role === "admin";
+  const urgentEscalationDisabled = Boolean(activeTicket) || hasPendingEscalationPrompt;
   const wizardActive =
     activeConversation != null &&
     !activeTicket &&
@@ -569,16 +662,56 @@ export function ChatPage() {
       style={pageGridStyle}
     >
       <Paper className="chat-panel" withBorder>
-        <Group justify="space-between" mb="md">
-          <div>
-            <Title order={2}>Чат поддержки</Title>
-            <Text size="sm" c="dimmed">
-              {activeConversation
-                ? getStatusLabel(activeConversation.status)
-                : "Новый диалог"}
-            </Text>
-          </div>
+        <Group justify="space-between" mb={6}>
+          <Group gap="sm" align="center" wrap="nowrap">
+            <Tooltip label="Новый диалог" withArrow>
+              <ActionIcon
+                variant="light"
+                size="lg"
+                radius="md"
+                aria-label="Новый диалог"
+                loading={createConversation.isPending}
+                onClick={handleNewConversation}
+              >
+                <IconPlus size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <div>
+              <Title order={2}>Чат поддержки</Title>
+              <Group gap={6} align="center">
+                {activeConversation?.status === "active" && (
+                  <span className="status-dot-online" aria-hidden />
+                )}
+                <Text size="sm" c="dimmed">
+                  {activeConversation
+                    ? getStatusLabel(activeConversation.status)
+                    : "Новый диалог"}
+                </Text>
+              </Group>
+            </div>
+          </Group>
           <Group gap="xs">
+            <Tooltip
+              label={
+                urgentEscalationDisabled
+                  ? "Доступно, пока по диалогу нет черновика"
+                  : "Сразу передать запрос специалисту"
+              }
+              withArrow
+            >
+              <span>
+                <Button
+                  variant="subtle"
+                  color="red"
+                  leftSection={<IconUrgent size={16} />}
+                  loading={createConversation.isPending}
+                  disabled={urgentEscalationDisabled}
+                  onClick={handleUrgentEscalation}
+                >
+                  Срочно: нужен человек
+                </Button>
+              </span>
+            </Tooltip>
             <Button
               variant="subtle"
               leftSection={<IconClipboardList size={16} />}
@@ -587,14 +720,6 @@ export function ChatPage() {
               onClick={handleStartTicketWizard}
             >
               Оформить запрос
-            </Button>
-            <Button
-              variant="light"
-              leftSection={<IconPlus size={16} />}
-              loading={createConversation.isPending}
-              onClick={handleNewConversation}
-            >
-              Новый
             </Button>
           </Group>
         </Group>
@@ -622,7 +747,7 @@ export function ChatPage() {
             <>
               <LoadingOverlay visible={messages.isFetching && !messages.data} />
               <ScrollArea className="messages-scroll" type="auto">
-                <Stack gap="sm" p="md">
+                <Stack gap={6} p={6}>
                   {!messages.data?.length && (
                     <div className="empty-state">
                       <IconMessageCircle size={34} />
@@ -633,7 +758,8 @@ export function ChatPage() {
                     <MessageBubble
                       key={message.id}
                       message={message}
-                      showAiConfidence={showAiConfidence}
+                      actionDisabled={composerDisabled || sendMessage.isPending}
+                      onActionPrompt={handleSend}
                     />
                   ))}
                   {shouldPollMessages && (
@@ -659,9 +785,45 @@ export function ChatPage() {
                 </Stack>
               </ScrollArea>
               {activeConversation?.intake_state?.last_question && !shouldPollMessages && (
-                <Alert color="blue" variant="light" p="xs" mx="md" mb="xs">
+                <Alert color="blue" variant="light" p={6} mx={6} mb={6}>
                   <Text size="sm">{activeConversation.intake_state.last_question}</Text>
                 </Alert>
+              )}
+              {!messages.data?.length && !shouldPollMessages && (
+                <Stack gap={4} px={6} mb={6} className="quick-scenarios">
+                  <Group justify="space-between" gap="xs">
+                    <Text size="sm" fw={600}>
+                      Быстрые сценарии
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      один клик запускает диалог
+                    </Text>
+                  </Group>
+                  <Group gap="xs" align="stretch">
+                    {QUICK_SCENARIOS.map((scenario) => (
+                      <button
+                        key={scenario.title}
+                        type="button"
+                        className="quick-scenario"
+                        disabled={
+                          composerDisabled ||
+                          sendMessage.isPending ||
+                          createConversation.isPending
+                        }
+                        onClick={() => {
+                          void handleQuickScenario(scenario.prompt);
+                        }}
+                      >
+                        <Text size="sm" fw={600}>
+                          {scenario.title}
+                        </Text>
+                        <Text size="xs" c="dimmed" lineClamp={2}>
+                          {scenario.description}
+                        </Text>
+                      </button>
+                    ))}
+                  </Group>
+                </Stack>
               )}
               <Composer
                 loading={
@@ -691,12 +853,12 @@ export function ChatPage() {
       <div className="side-panel">
         <Paper
           withBorder
-          p="md"
+          p={8}
           className={`quiet-panel conversations-panel${
             dialogHistoryCollapsed ? " collapsed" : ""
           }`}
         >
-          <Group justify="space-between" mb="sm">
+          <Group justify="space-between" mb={6}>
             <Title order={4}>Диалоги</Title>
             <Group gap="xs">
               <Badge variant="light">{conversations.data?.length ?? 0}</Badge>
@@ -781,8 +943,8 @@ export function ChatPage() {
             onSave={handleSaveDraft}
           />
         ) : hasPendingEscalationPrompt && activeConversation ? (
-          <Paper withBorder p="md" className="quiet-panel draft-escalation-panel">
-            <Stack gap="sm">
+          <Paper withBorder p={8} className="quiet-panel draft-escalation-panel">
+            <Stack gap={6}>
               <div>
                 <Title order={4}>Черновик запроса</Title>
                 <Text size="sm" c="dimmed">
@@ -801,7 +963,7 @@ export function ChatPage() {
             </Stack>
           </Paper>
         ) : (
-          <Paper withBorder p="md" className="quiet-panel">
+          <Paper withBorder p={8} className="quiet-panel">
             <Title order={4}>Черновик запроса</Title>
             <Text size="sm" c="dimmed">
               Появится после эскалации диалога.

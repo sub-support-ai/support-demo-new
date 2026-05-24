@@ -156,6 +156,9 @@ async def test_get_ai_answer_records_broken_json_fallback(
     import httpx
 
     monkeypatch.setattr(httpx, "AsyncClient", _StubClient)
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "AI_SERVICE_URL", "http://ai-service.test")
 
     await conversation_ai.generate_ai_message(db_session, conversation.id)
 

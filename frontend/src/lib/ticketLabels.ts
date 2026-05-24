@@ -67,6 +67,38 @@ export function getDepartmentLabel(department?: string | null): string {
   return DEPARTMENT_LABELS[department] ?? department;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  user: "Сотрудник",
+  agent: "Агент поддержки",
+  admin: "Руководитель",
+};
+
+export function getRoleLabel(role?: string | null): string | null {
+  if (!role) return null;
+  return ROLE_LABELS[role] ?? role;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  it_hardware: "Оборудование",
+  it_software: "Программное обеспечение",
+  it_access: "Доступ и учётные записи",
+  it_network: "Сеть и VPN",
+  hr_payroll: "Зарплата и выплаты",
+  hr_leave: "Отпуска и отсутствия",
+  hr_policy: "Кадровые политики",
+  hr_onboarding: "Оформление сотрудника",
+  finance_invoice: "Счета и оплаты",
+  finance_expense: "Расходы и компенсации",
+  finance_report: "Финансовые отчёты",
+  other: "Другое",
+};
+
+/** Человекочитаемая тема AI-классификации. Сырой код категории наружу не показываем. */
+export function getCategoryLabel(category?: string | null): string | null {
+  if (!category) return null;
+  return CATEGORY_LABELS[category] ?? category.replace(/_/g, " ");
+}
+
 const TICKET_KIND_LABELS: Record<string, string> = {
   incident: "Инцидент",
   service_request: "Запрос услуги",

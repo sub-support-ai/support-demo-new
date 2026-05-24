@@ -308,9 +308,9 @@ def has_critical_or_security_incident(messages: list[dict[str, str]]) -> bool:
     user_messages = _normalised_user_messages(messages)
     if not user_messages:
         return False
-    combined = "\n".join(user_messages)
-    has_security_incident = _contains_any(combined, SECURITY_INCIDENT_TERMS)
-    has_safety_risk = _contains_any(combined, SAFETY_RISK_TERMS)
+    latest_user = user_messages[-1]
+    has_security_incident = _contains_any(latest_user, SECURITY_INCIDENT_TERMS)
+    has_safety_risk = _contains_any(latest_user, SAFETY_RISK_TERMS)
     return has_security_incident or has_safety_risk or has_urgent_physical_incident(messages)
 
 

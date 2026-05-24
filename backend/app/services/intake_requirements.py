@@ -52,6 +52,20 @@ FIELD_LABELS = {
     "time_detected": "когда обнаружили проблему",
 }
 
+
+def _field_label(field: str) -> str:
+    """Человекочитаемая подпись поля.
+
+    Для известных полей берём из FIELD_LABELS. Незнакомые поля никогда не
+    показываем сырым ключом (`requester_name`) — это утечка технической
+    схемы наружу; вместо этого превращаем snake_case в обычный текст.
+    """
+    label = FIELD_LABELS.get(field)
+    if label:
+        return label
+    return field.replace("_", " ").strip()
+
+
 QUESTION_PRIORITY = [
     "office",
     "affected_item",
@@ -301,7 +315,7 @@ def choose_next_question_fields(missing_fields: list[str], asked_fields: list[st
 def build_next_question(fields: list[str]) -> str:
     if not fields:
         return ""
-    labels = [FIELD_LABELS.get(field, field) for field in fields]
+    labels = [_field_label(field) for field in fields]
     return "Уточните: " + ", ".join(labels) + "."
 
 
@@ -368,7 +382,7 @@ def _format_collected_fields(fields: dict[str, Any]) -> str:
     for field in visible_order:
         value = fields.get(field)
         if _has_value(value):
-            lines.append(f"- {FIELD_LABELS.get(field, field)}: {value}")
+            lines.append(f"- {_field_label(field)}: {value}")
     return "\n".join(lines[:6])
 
 

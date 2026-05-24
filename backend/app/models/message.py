@@ -58,6 +58,12 @@ class Message(Base):
     # таблица добавила бы JOIN на каждое чтение чата ради нулевой выгоды.
     sources: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     requires_escalation: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # Оценка пользователя по AI-ответу: "helped" / "not_helped" / None.
+    # Петля качества для НЕ-KB ответов: у них нет статьи KB, чтобы крутить
+    # её счётчики, поэтому последний вердикт пользователя храним прямо на
+    # сообщении. Одно значение (последняя оценка) — для метрик доли полезных
+    # ответов; история не нужна.
+    user_feedback: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # ──────────────────────────────────────────────────────────────────────────
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

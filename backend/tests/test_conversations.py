@@ -813,6 +813,60 @@ async def test_escalate_creates_prefilled_ticket(client: AsyncClient, db_session
 
 
 @pytest.mark.asyncio
+async def test_pending_draft_updates_after_new_conversation_message(
+    client: AsyncClient,
+    db_session,
+):
+    _, token = await register_user(client, "draftrefresh")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    conv_id = (await client.post("/api/v1/conversations/", headers=headers)).json()["id"]
+    message_resp = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={"content": "Порвался провод на рабочем месте"},
+        headers=headers,
+    )
+    assert message_resp.status_code == 201
+    await process_next_ai_job(db_session)
+
+    resp = await client.post(
+        f"/api/v1/conversations/{conv_id}/escalate",
+        json={
+            "context": {
+                "requester_name": "Иван Петров",
+                "requester_email": "ivan.petrov@example.com",
+                "office": "Главный офис",
+                "affected_item": "Принтер",
+            },
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    ticket_id = resp.json()["ticket"]["id"]
+
+    marker = "DRAFT_REFRESH_MARKER"
+    followup_resp = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={"content": f"Дополнение для специалиста: {marker}"},
+        headers=headers,
+    )
+    assert followup_resp.status_code == 201
+
+    tickets_resp = await client.get("/api/v1/tickets/", headers=headers)
+    assert tickets_resp.status_code == 200
+    ticket = next(item for item in tickets_resp.json() if item["id"] == ticket_id)
+    assert marker in ticket["body"]
+
+    await process_next_ai_job(db_session)
+
+    tickets_resp = await client.get("/api/v1/tickets/", headers=headers)
+    assert tickets_resp.status_code == 200
+    ticket = next(item for item in tickets_resp.json() if item["id"] == ticket_id)
+    assert ticket["status"] == "pending_user"
+    assert marker in ticket["body"]
+
+
+@pytest.mark.asyncio
 async def test_escalate_blank_requester_name_uses_profile_fallback(
     client: AsyncClient,
     db_session,
@@ -1190,6 +1244,64 @@ def test_support_draft_detection_handles_draft_request_and_urgent_wire():
     )
 
 
+@pytest.mark.asyncio
+async def test_security_followup_does_not_repeat_initial_answer(
+    client: AsyncClient,
+    db_session,
+):
+    _, token = await register_user(client, "securityhandoff")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = (await client.post("/api/v1/conversations/", headers=headers)).json()["id"]
+
+    first = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={
+            "content": (
+                "Мне пришло письмо якобы от IT с просьбой срочно ввести пароль "
+                "по ссылке. Я ссылку открыл, но пароль не вводил. Что делать?"
+            )
+        },
+        headers=headers,
+    )
+    assert first.status_code == 201
+    await process_next_ai_job(db_session)
+    first_history = (
+        await client.get(f"/api/v1/conversations/{conv_id}/messages", headers=headers)
+    ).json()
+    first_answer = first_history[-1]["content"]
+    assert "Похоже на фишинг" in first_answer
+
+    handoff = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={
+            "content": "Хочу передать подозрительное письмо в безопасность. Помогите оформить запрос."
+        },
+        headers=headers,
+    )
+    assert handoff.status_code == 201
+    await process_next_ai_job(db_session)
+    handoff_history = (
+        await client.get(f"/api/v1/conversations/{conv_id}/messages", headers=headers)
+    ).json()
+    handoff_answer = handoff_history[-1]["content"]
+    assert handoff_answer != first_answer
+    assert "Передаю обращение в безопасность" in handoff_answer
+
+    unrelated = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={"content": "Как обновить VS Code?"},
+        headers=headers,
+    )
+    assert unrelated.status_code == 201
+    await process_next_ai_job(db_session)
+    unrelated_history = (
+        await client.get(f"/api/v1/conversations/{conv_id}/messages", headers=headers)
+    ).json()
+    unrelated_answer = unrelated_history[-1]["content"]
+    assert unrelated_answer != first_answer
+    assert "Похоже на фишинг" not in unrelated_answer
+
+
 # ── Блок 3: AI latency capture ───────────────────────────────────────────────
 
 
@@ -1260,3 +1372,97 @@ async def test_ai_log_records_latency_passed_through_payload(
         await db_session.execute(select(AILog).where(AILog.conversation_id == conv_id))
     ).scalar_one()
     assert log.ai_response_time_ms == captured_latency_ms
+
+
+@pytest.mark.asyncio
+async def test_message_feedback_records_and_overwrites(
+    client: AsyncClient,
+    db_session,
+):
+    _, token = await register_user(client, "msgfeedback")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = (await client.post("/api/v1/conversations/", headers=headers)).json()["id"]
+    await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={"content": "Не могу зайти в почту"},
+        headers=headers,
+    )
+    await process_next_ai_job(db_session)
+
+    history = await client.get(
+        f"/api/v1/conversations/{conv_id}/messages",
+        headers=headers,
+    )
+    ai_msg = history.json()[-1]
+    assert ai_msg["role"] == "ai"
+    assert ai_msg["user_feedback"] is None
+
+    helped = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages/{ai_msg['id']}/feedback",
+        json={"feedback": "helped"},
+        headers=headers,
+    )
+    assert helped.status_code == 200
+    assert helped.json()["user_feedback"] == "helped"
+
+    not_helped = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages/{ai_msg['id']}/feedback",
+        json={"feedback": "not_helped"},
+        headers=headers,
+    )
+    assert not_helped.status_code == 200
+    assert not_helped.json()["user_feedback"] == "not_helped"
+
+
+@pytest.mark.asyncio
+async def test_message_feedback_rejects_invalid_value(
+    client: AsyncClient,
+    db_session,
+):
+    _, token = await register_user(client, "msgfeedbackbad")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = (await client.post("/api/v1/conversations/", headers=headers)).json()["id"]
+    await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={"content": "тест"},
+        headers=headers,
+    )
+    await process_next_ai_job(db_session)
+    ai_msg = (
+        await client.get(f"/api/v1/conversations/{conv_id}/messages", headers=headers)
+    ).json()[-1]
+
+    bad = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages/{ai_msg['id']}/feedback",
+        json={"feedback": "love_it"},
+        headers=headers,
+    )
+    assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_message_feedback_on_foreign_conversation_returns_404(
+    client: AsyncClient,
+    db_session,
+):
+    _, owner_token = await register_user(client, "msgfeedbackowner")
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    conv_id = (await client.post("/api/v1/conversations/", headers=owner_headers)).json()["id"]
+    await client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        json={"content": "приватный диалог"},
+        headers=owner_headers,
+    )
+    await process_next_ai_job(db_session)
+    ai_msg = (
+        await client.get(f"/api/v1/conversations/{conv_id}/messages", headers=owner_headers)
+    ).json()[-1]
+
+    _, other_token = await register_user(client, "msgfeedbackother")
+    other_headers = {"Authorization": f"Bearer {other_token}"}
+    response = await client.post(
+        f"/api/v1/conversations/{conv_id}/messages/{ai_msg['id']}/feedback",
+        json={"feedback": "helped"},
+        headers=other_headers,
+    )
+    assert response.status_code == 404

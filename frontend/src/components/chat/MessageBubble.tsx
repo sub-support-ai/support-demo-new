@@ -1,45 +1,160 @@
-import { ActionIcon, Badge, Group, Paper, Text, Tooltip } from "@mantine/core";
-import {
-  IconThumbDown,
-  IconThumbUp,
-  IconX,
-} from "@tabler/icons-react";
+import { ActionIcon, Badge, Button, Group, Paper, Text, Tooltip } from "@mantine/core";
+import { IconThumbDown, IconThumbUp, IconX } from "@tabler/icons-react";
 import { useState } from "react";
 
+import { useSubmitMessageFeedback } from "../../api/conversations";
 import { useSubmitKnowledgeFeedback } from "../../api/knowledge";
 import type { Message } from "../../api/types";
 import { Sources } from "./Sources";
 
-/** Визуальный индикатор уверенности модели.
- *  ≥ 0.8 — зелёный «уверен» (типично для KB-hit'ов с decision=answer)
- *  ≥ 0.6 — жёлтый «средне» (clarify или LLM с осторожным ответом)
- *  <  0.6 — красный «не уверен» (escalate / red zone)
- *  null  — не показываем (intake-сообщения, fallback'и без conf'а)
- */
-function ConfidenceBadge({ confidence }: { confidence?: number | null }) {
-  if (typeof confidence !== "number" || confidence <= 0) return null;
-  let color: string;
-  let label: string;
-  let tooltip: string;
-  if (confidence >= 0.8) {
-    color = "green";
-    label = "уверен";
-    tooltip = "Ответ найден с высокой уверенностью";
-  } else if (confidence >= 0.6) {
-    color = "yellow";
-    label = "средне";
-    tooltip = "Ответ требует осторожной проверки";
-  } else {
-    color = "red";
-    label = "не уверен";
-    tooltip = "Лучше передать вопрос специалисту";
+const SECURITY_TERMS = [
+  "фишинг",
+  "подозрительное письмо",
+  "вредоносная ссылка",
+  "компрометация",
+  "учётной записи",
+  "учетной записи",
+];
+
+type DispatchMetadata = {
+  category: string;
+  priority: string;
+  action: string;
+  color: string;
+};
+
+function formatMessageTime(value?: string | null): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function isSecurityAnswer(message: Message) {
+  if (message.role !== "ai") return false;
+  const content = message.content.toLocaleLowerCase("ru-RU");
+  return SECURITY_TERMS.some((term) => content.includes(term));
+}
+
+function getKnowledgeActionLabel(decision?: string | null) {
+  if (decision === "clarify") return "уточнить детали";
+  if (decision === "escalate") return "оформить запрос";
+  return "дать решение";
+}
+
+function getDispatchMetadata(message: Message): DispatchMetadata | null {
+  if (message.role !== "ai") return null;
+
+  if (isSecurityAnswer(message)) {
+    return {
+      category: "Безопасность",
+      priority: "высокий",
+      action: "проверка специалистом",
+      color: "red",
+    };
   }
+
+  if (message.requires_escalation || message.ai_escalate) {
+    return {
+      category: "Запрос специалисту",
+      priority: "средний",
+      action: "собрать контекст",
+      color: "orange",
+    };
+  }
+
+  const source = message.sources?.find((item) => item.article_id);
+  if (source) {
+    return {
+      category: "База знаний",
+      priority: "обычный",
+      action: getKnowledgeActionLabel(source.decision),
+      color: source.decision === "escalate" ? "orange" : "blue",
+    };
+  }
+
+  if (typeof message.ai_confidence === "number" && message.ai_confidence > 0 && message.ai_confidence < 0.6) {
+    return {
+      category: "Уточнение",
+      priority: "средний",
+      action: "задать вопрос",
+      color: "yellow",
+    };
+  }
+
+  return {
+    category: "Самопомощь",
+    priority: "обычный",
+    action: "ответить в чате",
+    color: "teal",
+  };
+}
+
+function DispatchStrip({ message }: { message: Message }) {
+  const metadata = getDispatchMetadata(message);
+  if (!metadata) return null;
+
   return (
-    <Tooltip label={tooltip} withArrow>
-      <Badge size="xs" variant="light" color={color}>
-        {label}
+    <Group className="dispatch-strip" gap={6} mb={8} wrap="wrap">
+      <Badge size="xs" variant="light" color={metadata.color}>
+        {metadata.category}
       </Badge>
-    </Tooltip>
+      <Text size="xs" c="dimmed">
+        приоритет: {metadata.priority}
+      </Text>
+      <Text size="xs" c="dimmed">
+        действие: {metadata.action}
+      </Text>
+    </Group>
+  );
+}
+
+function SecurityActions({
+  disabled,
+  onActionPrompt,
+}: {
+  disabled?: boolean;
+  onActionPrompt?: (text: string) => void | Promise<void>;
+}) {
+  if (!onActionPrompt) return null;
+
+  return (
+    <Group gap="xs" mt="xs" wrap="wrap" className="message-actions">
+      <Button
+        size="xs"
+        variant="light"
+        color="red"
+        disabled={disabled}
+        onClick={() =>
+          onActionPrompt(
+            "Хочу передать подозрительное письмо в безопасность. Помогите оформить запрос.",
+          )
+        }
+      >
+        Передать в безопасность
+      </Button>
+      <Button
+        size="xs"
+        variant="light"
+        disabled={disabled}
+        onClick={() =>
+          onActionPrompt("Помогите срочно сменить пароль после подозрительного письма.")
+        }
+      >
+        Сменить пароль
+      </Button>
+      <Button
+        size="xs"
+        variant="subtle"
+        disabled={disabled}
+        onClick={() => onActionPrompt("Срочно нужен специалист по информационной безопасности.")}
+      >
+        Нужен специалист
+      </Button>
+    </Group>
   );
 }
 
@@ -68,7 +183,6 @@ function KnowledgeFeedbackActions({ message }: { message: Message }) {
     }
   }
 
-  // После выбора фидбека показываем только результат, без других кнопок.
   if (selected) {
     return (
       <Group gap={6} mt="xs" align="center">
@@ -124,14 +238,83 @@ function KnowledgeFeedbackActions({ message }: { message: Message }) {
   );
 }
 
+function MessageFeedbackActions({ message }: { message: Message }) {
+  const submitFeedback = useSubmitMessageFeedback();
+  const [selected, setSelected] = useState<"helped" | "not_helped" | null>(
+    message.user_feedback ?? null,
+  );
+
+  async function handleFeedback(feedback: "helped" | "not_helped") {
+    const previous = selected;
+    setSelected(feedback);
+    try {
+      await submitFeedback.mutateAsync({
+        conversationId: message.conversation_id,
+        messageId: message.id,
+        feedback,
+      });
+    } catch {
+      setSelected(previous);
+    }
+  }
+
+  if (selected) {
+    return (
+      <Group gap={6} mt="xs" align="center">
+        <Text size="xs" c="dimmed">
+          Спасибо за оценку
+        </Text>
+      </Group>
+    );
+  }
+
+  return (
+    <Group gap={4} mt="xs" align="center">
+      <Text size="xs" c="dimmed" mr={4}>
+        Помог ответ?
+      </Text>
+      <Tooltip label="Помогло" withArrow>
+        <ActionIcon
+          variant="subtle"
+          color="teal"
+          size="sm"
+          loading={submitFeedback.isPending && selected === "helped"}
+          onClick={() => handleFeedback("helped")}
+          aria-label="Помогло"
+        >
+          <IconThumbUp size={16} stroke={1.5} />
+        </ActionIcon>
+      </Tooltip>
+      <Tooltip label="Не помогло" withArrow>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
+          loading={submitFeedback.isPending && selected === "not_helped"}
+          onClick={() => handleFeedback("not_helped")}
+          aria-label="Не помогло"
+        >
+          <IconThumbDown size={16} stroke={1.5} />
+        </ActionIcon>
+      </Tooltip>
+    </Group>
+  );
+}
+
 export function MessageBubble({
   message,
-  showAiConfidence = false,
+  actionDisabled,
+  onActionPrompt,
 }: {
   message: Message;
-  showAiConfidence?: boolean;
+  actionDisabled?: boolean;
+  onActionPrompt?: (text: string) => void | Promise<void>;
 }) {
   const isUser = message.role === "user";
+  const hasKbArticle = Boolean(message.sources?.some((source) => source.article_id));
+  const showSecurityActions = isSecurityAnswer(message);
+
+  const time = formatMessageTime(message.created_at);
 
   return (
     <div className={`message-row ${isUser ? "user" : "ai"}`}>
@@ -140,15 +323,26 @@ export function MessageBubble({
           <Text size="xs" fw={600} c="dimmed">
             {isUser ? "Вы" : "AI"}
           </Text>
-          {!isUser && showAiConfidence && (
-            <ConfidenceBadge confidence={message.ai_confidence} />
+          {time && (
+            <Text size="xs" c="dimmed" ml="auto">
+              {time}
+            </Text>
           )}
         </Group>
+        {!isUser && <DispatchStrip message={message} />}
         <Text size="sm" className="message-text">
           {message.content}
         </Text>
         {!isUser && <Sources sources={message.sources} />}
-        {!isUser && <KnowledgeFeedbackActions message={message} />}
+        {showSecurityActions && (
+          <SecurityActions disabled={actionDisabled} onActionPrompt={onActionPrompt} />
+        )}
+        {!isUser &&
+          (hasKbArticle ? (
+            <KnowledgeFeedbackActions message={message} />
+          ) : (
+            <MessageFeedbackActions message={message} />
+          ))}
       </Paper>
     </div>
   );

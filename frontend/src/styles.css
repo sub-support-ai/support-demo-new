@@ -1,4 +1,12 @@
 :root {
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --radius-panel: 8px;
+  --surface-border: #dce5e2;
   color: #18211f;
   background: #f4f7f6;
 }
@@ -16,7 +24,74 @@ body,
 }
 
 body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.42;
   background: #f4f7f6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.mantine-Title-root {
+  color: #14211f;
+  letter-spacing: 0;
+}
+
+.mantine-Text-root {
+  letter-spacing: 0;
+}
+
+.mantine-Button-root,
+.mantine-Badge-root,
+.mantine-Tabs-tabLabel,
+.mantine-Input-label {
+  letter-spacing: 0;
+}
+
+.mantine-Button-root {
+  font-weight: 600;
+}
+
+.mantine-Input-label {
+  margin-bottom: 3px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mantine-Input-input,
+.mantine-Textarea-input,
+.mantine-Select-input {
+  font-size: 14px;
+}
+
+.mantine-Tabs-list {
+  gap: 2px;
+}
+
+.mantine-Tabs-tab {
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.mantine-Table-table {
+  font-size: 14px;
+}
+
+.mantine-Table-th,
+.mantine-Table-td {
+  padding: 7px 10px;
+}
+
+.mantine-Alert-root {
+  padding: 8px 10px;
+}
+
+.mantine-Alert-message {
+  line-height: 1.4;
+}
+
+.mantine-Paper-root {
+  letter-spacing: 0;
 }
 
 .app-header {
@@ -38,6 +113,9 @@ body {
   margin-top: 0;
   min-height: 0;
   overflow: hidden;
+  /* Светло-серый канвас: карточки белые на сером — пустые зазоры читаются
+     как поля, а не как «дыры» в интерфейсе. */
+  background: #f5f6f8;
 }
 
 .app-main.chat-main .page-grid {
@@ -58,30 +136,33 @@ body {
 .dashboard-panel,
 .quiet-panel,
 .ticket-card {
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
 }
 
 .page-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 8px minmax(360px, var(--chat-side-width, 480px));
+  grid-template-columns: minmax(0, 1fr) 6px minmax(360px, var(--chat-side-width, 480px));
   align-items: stretch;
-  gap: 10px;
-  padding: 16px;
+  /* Колонки разделены резайзером (8px) + по 8px зазора = ~24px между колонками.
+     Карточки внутри правой колонки ближе (16px) — задаёт визуальный ритм. */
+  gap: var(--space-4);
+  padding: var(--space-8);
   height: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
 .page-grid.draft-mode {
-  grid-template-columns: minmax(340px, 1fr) 8px minmax(360px, var(--chat-side-width, 480px));
+  grid-template-columns: minmax(340px, 1fr) 6px minmax(360px, var(--chat-side-width, 480px));
 }
 
 .content-page {
-  padding: 16px;
+  padding: var(--space-8);
 }
 
 .dashboard-page {
-  max-width: 1280px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
@@ -89,7 +170,7 @@ body {
 .tickets-panel,
 .dashboard-panel {
   position: relative;
-  padding: 16px;
+  padding: var(--space-8);
   background: #ffffff;
 }
 
@@ -108,28 +189,28 @@ body {
 }
 
 .dashboard-panel {
-  padding: 20px;
+  padding: 10px;
 }
 
 .dashboard-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .metric-card,
 .dashboard-section {
-  padding: 16px;
+  padding: 10px;
   background: #ffffff;
 }
 
 .metric-card {
-  min-height: 128px;
+  min-height: 94px;
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 4px;
 }
 
 .metric-label {
@@ -137,18 +218,18 @@ body {
 }
 
 .metric-value {
-  font-size: 32px;
+  font-size: 26px;
   line-height: 1.1;
   font-weight: 700;
 }
 
 .dashboard-section {
-  min-height: 220px;
+  min-height: 180px;
 }
 
 .job-failure-row {
-  padding: 12px;
-  border-radius: 8px;
+  padding: 8px;
+  border-radius: var(--radius-panel);
   background: #fffafa;
 }
 
@@ -159,12 +240,14 @@ body {
    умышленно не используем оранжевый+тёмный, чтобы визуально не
    пересекаться с шаблонами вроде "Вектор". */
 .employee-dashboard {
-  max-width: 980px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
 .agent-dashboard {
-  max-width: 1100px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
@@ -172,7 +255,7 @@ body {
   /* Нейтральный серо-белый градиент — строгий рабочий тон,
      без голубого (сотрудник) и без зелёного (системный обзор). */
   background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 70%);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
 }
 
 .employee-hero {
@@ -180,13 +263,13 @@ body {
      Контрастирует с белыми карточками ниже, выделяя приветствие
      как единственный «hero» блок страницы. */
   background: linear-gradient(135deg, #f4f8ff 0%, #ffffff 70%);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
 }
 
 .employee-stat-card {
-  min-height: 96px;
+  min-height: 78px;
   background: #ffffff;
-  border-radius: 10px;
+  border-radius: var(--radius-panel);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -200,12 +283,12 @@ body {
      цеплялись глазом, но без агрессии — это не ошибка, а напоминание. */
   background: #fff8f0;
   border-color: #ffd9a8;
-  border-radius: 10px;
+  border-radius: var(--radius-panel);
 }
 
 .employee-ticket-row {
   background: #ffffff;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   transition: background 0.12s ease;
 }
 
@@ -219,12 +302,14 @@ body {
 }
 
 .knowledge-page {
-  max-width: 1440px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
 .jobs-page {
-  max-width: 1480px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
@@ -241,8 +326,8 @@ body {
 .knowledge-list-panel,
 .knowledge-editor-panel {
   position: relative;
-  min-height: 520px;
-  padding: 14px;
+  min-height: 460px;
+  padding: 10px;
 }
 
 .knowledge-list-panel {
@@ -277,6 +362,45 @@ body {
   min-height: 0;
 }
 
+.messages-scroll .mantine-ScrollArea-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(81, 97, 93, 0.18) transparent;
+}
+
+.messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(81, 97, 93, 0.16);
+}
+
+.messages-scroll .mantine-ScrollArea-scrollbar {
+  width: 6px;
+  padding: 1px;
+  opacity: 0.22;
+  background: transparent;
+  transition: opacity 120ms ease;
+}
+
+.chat-surface:hover .messages-scroll .mantine-ScrollArea-scrollbar {
+  opacity: 0.5;
+}
+
+.messages-scroll .mantine-ScrollArea-thumb {
+  border-radius: 999px;
+  background: rgba(81, 97, 93, 0.24);
+}
+
+.messages-scroll .mantine-ScrollArea-thumb:hover {
+  background: rgba(31, 122, 99, 0.42);
+}
+
 .message-row {
   display: flex;
 }
@@ -291,7 +415,8 @@ body {
 
 .message-bubble {
   max-width: min(680px, 78%);
-  padding: 10px 12px;
+  padding: 6px 8px;
+  line-height: 1.38;
 }
 
 .message-bubble.user {
@@ -303,15 +428,23 @@ body {
   background: #ffffff;
 }
 
+.dispatch-strip {
+  padding: 3px 6px;
+  border: 1px solid #e6f0ed;
+  border-radius: 6px;
+  background: #f8fbfa;
+}
+
 .message-text {
   white-space: pre-wrap;
+  line-height: 1.42;
 }
 
 .ai-processing-indicator {
   align-self: flex-start;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: #ffffff;
 }
 
@@ -353,13 +486,59 @@ body {
 .escalation-card {
   width: 100%;
   max-width: 100%;
-  border-radius: 8px;
-  border-left: 4px solid var(--mantine-color-red-5);
-  background: #fffafa;
+  border-radius: var(--radius-panel);
+  border-left: 4px solid var(--mantine-color-teal-5);
+  background: #ffffff;
+}
+
+/* Боковая панель узкая (~480px): двухколоночные пары полей в карточке
+   черновика не помещаются и текст обрезается ("Сломано обор", "Выберите офи").
+   Раскладываем поля формы эскалации в одну колонку — подписи и значения
+   видны целиком. Кнопка ("Создать черновик") не grow — её не трогаем. */
+.escalation-card .mantine-Group-root[data-grow] > * {
+  flex-basis: 100%;
+}
+
+/* В режиме черновика карточка тянется на всю высоту колонки, а кнопка
+   «Создать черновик» прилипает к низу — форма «заземлена», без пустоты.
+   Цепочку flex ведём по своим классам (через classNames Alert), а не по
+   внутренним mantine-* — устойчиво к версии Mantine. */
+.page-grid.draft-mode .escalation-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.page-grid.draft-mode .escalation-card-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.page-grid.draft-mode .escalation-card-body,
+.page-grid.draft-mode .escalation-card-message,
+.page-grid.draft-mode .escalation-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.page-grid.draft-mode .escalation-stack > .mantine-Group-root:last-child {
+  margin-top: auto;
+}
+
+/* Индикатор «онлайн» рядом со статусом активного диалога. */
+.status-dot-online {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mantine-color-teal-6);
+  flex-shrink: 0;
 }
 
 .sources {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .sources-toggle {
@@ -368,12 +547,12 @@ body {
 
 .sources-list {
   display: grid;
-  gap: 6px;
-  padding-top: 6px;
+  gap: 4px;
+  padding-top: 4px;
 }
 
 .source-item {
-  padding: 6px 0;
+  padding: 4px 0;
 }
 
 .source-snippet {
@@ -382,12 +561,44 @@ body {
 
 .composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px;
+  grid-template-columns: minmax(0, 1fr) 38px;
   align-items: end;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 6px;
   border-top: 1px solid #dce5e2;
   background: #ffffff;
+}
+
+.quick-scenarios {
+  padding-top: 6px;
+  border-top: 1px solid #eef2f0;
+}
+
+.quick-scenario {
+  flex: 1 1 180px;
+  min-width: 160px;
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid #dce9e5;
+  border-radius: var(--radius-panel);
+  background: #f8fbfa;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.quick-scenario:hover:not(:disabled),
+.quick-scenario:focus-visible:not(:disabled) {
+  border-color: #1f7a63;
+  background: #eef8f4;
+  transform: translateY(-1px);
+}
+
+.quick-scenario:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .composer-input-root {
@@ -395,24 +606,24 @@ body {
 }
 
 .composer-input {
-  min-height: 42px;
-  padding-top: 9px;
-  padding-bottom: 9px;
+  min-height: 38px;
+  padding-top: 7px;
+  padding-bottom: 7px;
   line-height: 20px;
   resize: none;
 }
 
 .composer-send {
-  width: 42px;
-  height: 42px;
-  min-width: 42px;
-  flex: 0 0 42px;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  flex: 0 0 38px;
 }
 
 .chat-side-resizer {
   position: relative;
   align-self: stretch;
-  min-width: 8px;
+  min-width: 6px;
   cursor: col-resize;
   border-radius: 999px;
   outline: none;
@@ -423,7 +634,7 @@ body {
   position: absolute;
   top: 10px;
   bottom: 10px;
-  left: 3px;
+  left: 2px;
   width: 2px;
   border-radius: 999px;
   background: #dce5e2;
@@ -435,23 +646,43 @@ body {
 
 .chat-side-resizer:hover::before,
 .chat-side-resizer:focus-visible::before {
-  left: 2px;
+  left: 1px;
   width: 4px;
   background: #1f7a63;
 }
 
 .side-panel {
-  display: grid;
-  grid-template-rows: minmax(180px, 260px) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   align-self: stretch;
-  gap: 16px;
+  gap: 6px;
   height: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
-.page-grid.draft-mode .side-panel {
-  grid-template-rows: minmax(96px, 140px) minmax(0, 1fr);
+.side-panel > * {
+  min-height: 0;
+}
+
+/* Обычный режим: список «Диалоги» тянется на всю колонку, плейсхолдер
+   черновика — по контенту. */
+.side-panel > :first-child {
+  flex: 1 1 auto;
+}
+
+.side-panel > :last-child {
+  flex: 0 0 auto;
+}
+
+/* Режим черновика: «Диалоги» компактны (по контенту), «Черновик запроса»
+   тянется на остаток высоты — никакой пустоты и «провала». */
+.page-grid.draft-mode .side-panel > :first-child {
+  flex: 0 0 auto;
+}
+
+.page-grid.draft-mode .side-panel > :last-child {
+  flex: 1 1 auto;
 }
 
 .conversation-list {
@@ -472,26 +703,28 @@ body {
 
 .conversation-summary {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 3px;
+  padding: 6px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f8fbfa;
 }
 
 .side-panel > .quiet-panel,
+.side-panel > .draft-panel,
 .side-panel > .mantine-Alert-root {
   min-height: 0;
   overflow-y: auto;
+  padding: 8px;
 }
 
 .conversation-item {
   width: 100%;
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 3px;
+  padding: 6px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #ffffff;
   color: inherit;
   text-align: left;
@@ -514,11 +747,11 @@ body {
 
 .draft-ticket-body {
   white-space: pre-wrap;
-  max-height: 260px;
+  max-height: 180px;
   overflow-y: auto;
-  padding: 8px;
+  padding: 5px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #ffffff;
 }
 
@@ -535,10 +768,10 @@ body {
 
 /* Title — большой, выглядит как заголовок, но кликается и редактируется. */
 .draft-title-input {
-  font-size: 17px !important;
+  font-size: 16px !important;
   font-weight: 600 !important;
-  line-height: 1.35 !important;
-  padding: 6px 8px !important;
+  line-height: 1.25 !important;
+  padding: 3px 5px !important;
   border-radius: 6px !important;
   transition: background-color 0.15s ease;
   cursor: text;
@@ -555,8 +788,8 @@ body {
 /* Body — обычный текст, инлайн-редактируемый. */
 .draft-body-input {
   font-size: 14px !important;
-  line-height: 1.55 !important;
-  padding: 8px !important;
+  line-height: 1.4 !important;
+  padding: 5px !important;
   border-radius: 6px !important;
   background: #fafbfa !important;
   border: 1px solid transparent !important;
@@ -575,7 +808,7 @@ body {
 /* Read-only режим — описание показывается с переносами строк. */
 .draft-body-readonly {
   white-space: pre-wrap;
-  line-height: 1.55;
+  line-height: 1.4;
 }
 
 .wizard-host {
@@ -585,7 +818,7 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 32px 16px;
+  padding: 12px 8px;
 }
 
 .wizard-shell {
@@ -595,12 +828,12 @@ body {
 }
 
 .wizard-frame {
-  padding: 32px 36px;
+  padding: 18px 20px;
 }
 
 .wizard-step {
-  padding-top: 8px;
-  min-height: 220px;
+  padding-top: 4px;
+  min-height: 180px;
 }
 
 .wizard-question {
@@ -643,26 +876,55 @@ body {
 
 .empty-state {
   display: grid;
-  min-height: 220px;
+  min-height: 120px;
   place-items: center;
   align-content: center;
-  gap: 8px;
+  gap: 6px;
   color: #66736f;
 }
 
 .empty-state.tickets {
-  min-height: 260px;
+  min-height: 140px;
 }
 
 .ticket-card {
-  padding: 14px;
+  padding: 8px;
   background: #ffffff;
 }
 
 .ticket-filters {
   display: grid;
   grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, 1fr));
-  gap: 12px;
+  gap: 8px;
+}
+
+.ticket-groups {
+  min-width: 0;
+}
+
+.ticket-group {
+  padding-top: 6px;
+  border-top: 3px solid #dce5e2;
+}
+
+.ticket-group-red {
+  border-top-color: #fa5252;
+}
+
+.ticket-group-orange {
+  border-top-color: #fd7e14;
+}
+
+.ticket-group-blue {
+  border-top-color: #228be6;
+}
+
+.ticket-group-teal {
+  border-top-color: #12b886;
+}
+
+.ticket-group-yellow {
+  border-top-color: #fab005;
 }
 
 .ticket-queue-summary {
@@ -671,9 +933,9 @@ body {
 
 .queue-summary-item {
   display: grid;
-  gap: 6px;
-  min-height: 86px;
-  padding: 12px;
+  gap: 2px;
+  min-height: 56px;
+  padding: 8px;
   border: 1px solid #dce5e2;
   border-radius: 8px;
   background: #f8fbfa;
@@ -690,7 +952,7 @@ body {
 }
 
 .queue-summary-value {
-  font-size: 28px;
+  font-size: 23px;
   line-height: 1;
   font-weight: 700;
 }
@@ -698,23 +960,23 @@ body {
 .ticket-form-summary {
   display: grid;
   gap: 2px;
-  padding: 8px;
+  padding: 5px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f8fbfa;
 }
 
 .ticket-comments {
-  padding: 10px;
+  padding: 6px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f8fbfa;
 }
 
 .ticket-reroute-panel {
-  padding: 10px;
+  padding: 6px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #f8fbfa;
 }
 
@@ -723,9 +985,9 @@ body {
 }
 
 .ticket-comment {
-  padding: 8px;
+  padding: 5px;
   border: 1px solid #dce5e2;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #ffffff;
 }
 
@@ -737,6 +999,176 @@ body {
 .metric-card.success {
   border-color: #b7e4cf;
   background: #f0fbf6;
+}
+
+:root[data-mantine-color-scheme="dark"] {
+  --mantine-color-text: #f1f5f9;
+  --mantine-color-dimmed: #b7c0cc;
+  --mantine-color-placeholder: #aeb7c4;
+  --mantine-color-default: #1c212b;
+  --mantine-color-default-hover: #242a36;
+  --mantine-color-default-border: #343b49;
+}
+
+[data-mantine-color-scheme="dark"] {
+  color: #f1f5f9;
+  background: #111318;
+}
+
+[data-mantine-color-scheme="dark"] body {
+  color: #f1f5f9;
+  background: #111318;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Title-root {
+  color: #f8fafc;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Text-root[data-dimmed] {
+  color: #b7c0cc !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Text-root[style*="var(--mantine-color-dimmed)"] {
+  color: #b7c0cc !important;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-label,
+[data-mantine-color-scheme="dark"] .mantine-Input-description {
+  color: #c5ceda;
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Input-input,
+[data-mantine-color-scheme="dark"] .mantine-Textarea-input,
+[data-mantine-color-scheme="dark"] .mantine-Select-input {
+  color: #f1f5f9;
+  border-color: #343b49;
+  background: #151922;
+}
+
+[data-mantine-color-scheme="dark"] .app-header {
+  border-bottom-color: #343b49;
+  background: #151922;
+}
+
+[data-mantine-color-scheme="dark"] .app-main,
+[data-mantine-color-scheme="dark"] .app-main.chat-main {
+  background: #111318;
+}
+
+[data-mantine-color-scheme="dark"] .chat-panel,
+[data-mantine-color-scheme="dark"] .tickets-panel,
+[data-mantine-color-scheme="dark"] .dashboard-panel,
+[data-mantine-color-scheme="dark"] .quiet-panel,
+[data-mantine-color-scheme="dark"] .draft-panel,
+[data-mantine-color-scheme="dark"] .ticket-card,
+[data-mantine-color-scheme="dark"] .metric-card,
+[data-mantine-color-scheme="dark"] .dashboard-section,
+[data-mantine-color-scheme="dark"] .knowledge-list-panel,
+[data-mantine-color-scheme="dark"] .knowledge-editor-panel,
+[data-mantine-color-scheme="dark"] .jobs-table-panel {
+  border-color: #343b49;
+  background: #1a1f29;
+}
+
+[data-mantine-color-scheme="dark"] .chat-surface,
+[data-mantine-color-scheme="dark"] .conversation-summary,
+[data-mantine-color-scheme="dark"] .ticket-form-summary,
+[data-mantine-color-scheme="dark"] .ticket-comments,
+[data-mantine-color-scheme="dark"] .ticket-reroute-panel,
+[data-mantine-color-scheme="dark"] .dispatch-strip,
+[data-mantine-color-scheme="dark"] .quick-scenario {
+  border-color: #343b49;
+  background: #151922;
+}
+
+[data-mantine-color-scheme="dark"] .message-bubble.ai,
+[data-mantine-color-scheme="dark"] .ai-processing-indicator,
+[data-mantine-color-scheme="dark"] .thinking-bubble,
+[data-mantine-color-scheme="dark"] .conversation-item,
+[data-mantine-color-scheme="dark"] .draft-ticket-body,
+[data-mantine-color-scheme="dark"] .ticket-comment {
+  border-color: #343b49;
+  background: #202631;
+}
+
+[data-mantine-color-scheme="dark"] .message-bubble.user,
+[data-mantine-color-scheme="dark"] .conversation-item.active {
+  border-color: #3b82f6;
+  background: #1d2b3f;
+}
+
+[data-mantine-color-scheme="dark"] .conversation-item:hover,
+[data-mantine-color-scheme="dark"] .quick-scenario:hover:not(:disabled),
+[data-mantine-color-scheme="dark"] .quick-scenario:focus-visible:not(:disabled),
+[data-mantine-color-scheme="dark"] .employee-ticket-row:hover {
+  border-color: #4b5565;
+  background: #242a36;
+}
+
+[data-mantine-color-scheme="dark"] .composer,
+[data-mantine-color-scheme="dark"] .draft-body-input {
+  border-color: #343b49;
+  background: #1a1f29 !important;
+}
+
+[data-mantine-color-scheme="dark"] .draft-title-input:hover,
+[data-mantine-color-scheme="dark"] .draft-body-input:hover {
+  background-color: #202631 !important;
+}
+
+[data-mantine-color-scheme="dark"] .draft-title-input:focus,
+[data-mantine-color-scheme="dark"] .draft-body-input:focus {
+  background-color: #151922 !important;
+}
+
+[data-mantine-color-scheme="dark"] .employee-hero,
+[data-mantine-color-scheme="dark"] .agent-hero {
+  background: linear-gradient(135deg, #1a1f29 0%, #151922 75%);
+}
+
+[data-mantine-color-scheme="dark"] .employee-stat-card {
+  border-color: #343b49;
+  background: #1a1f29;
+}
+
+[data-mantine-color-scheme="dark"] .attention-card,
+[data-mantine-color-scheme="dark"] .queue-summary-item.warning {
+  border-color: #6b4c20;
+  background: #221a10;
+}
+
+[data-mantine-color-scheme="dark"] .queue-summary-item,
+[data-mantine-color-scheme="dark"] .job-failure-row {
+  border-color: #343b49;
+  background: #1a1f29;
+}
+
+[data-mantine-color-scheme="dark"] .queue-summary-item.danger {
+  border-color: #713131;
+  background: #241515;
+}
+
+[data-mantine-color-scheme="dark"] .knowledge-row.active td,
+[data-mantine-color-scheme="dark"] .notification-unread {
+  background: #1d2b3f;
+}
+
+[data-mantine-color-scheme="dark"] .draft-field-required .mantine-TextInput-input {
+  border-color: #9b5a2e;
+  background-color: #21170f;
+}
+
+[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-viewport {
+  scrollbar-color: rgba(194, 211, 205, 0.2) transparent;
+}
+
+[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-thumb,
+[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-viewport::-webkit-scrollbar-thumb {
+  background: rgba(194, 211, 205, 0.22);
+}
+
+[data-mantine-color-scheme="dark"] .messages-scroll .mantine-ScrollArea-thumb:hover {
+  background: rgba(77, 171, 146, 0.45);
 }
 
 @media (max-width: 960px) {
@@ -766,30 +1198,30 @@ body {
 @media (max-width: 720px) {
   .page-grid,
   .content-page {
-    padding: 10px;
+    padding: 8px;
   }
 
   .chat-panel,
   .tickets-panel,
   .dashboard-panel {
-    padding: 12px;
+    padding: 8px;
   }
 
   .dashboard-panel {
-    padding: 14px;
+    padding: 8px;
   }
 
   .dashboard-header {
-    margin-bottom: 14px;
+    margin-bottom: 8px;
   }
 
   .metric-card,
   .dashboard-section {
-    padding: 12px;
+    padding: 8px;
   }
 
   .metric-value {
-    font-size: 28px;
+    font-size: 24px;
   }
 
   .ticket-filters {

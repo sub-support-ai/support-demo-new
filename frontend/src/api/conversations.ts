@@ -7,6 +7,7 @@ import type {
   EscalateResponse,
   EscalationContext,
   Message,
+  MessageFeedbackPayload,
   Ticket,
 } from "./types";
 
@@ -52,8 +53,27 @@ export function useMessages(conversationId?: number, aiProcessing = false) {
       return data;
     },
     enabled: Boolean(conversationId),
-    refetchInterval: (_query) =>
-      aiProcessing && document.visibilityState === "visible" ? 2000 : false,
+    refetchInterval: (query) => {
+      if (document.visibilityState !== "visible") {
+        return false;
+      }
+      if (aiProcessing) {
+        return 2000;
+      }
+
+      let latestUserMessageId = 0;
+      let latestAiMessageId = 0;
+      for (const message of query.state.data ?? []) {
+        if (message.role === "user") {
+          latestUserMessageId = Math.max(latestUserMessageId, message.id);
+        }
+        if (message.role === "ai") {
+          latestAiMessageId = Math.max(latestAiMessageId, message.id);
+        }
+      }
+
+      return latestUserMessageId > latestAiMessageId ? 2000 : false;
+    },
   });
 }
 
@@ -78,6 +98,33 @@ export function useSendMessage() {
         queryKey: ["conversations", variables.conversationId, "messages"],
       });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+    },
+  });
+}
+
+export function useSubmitMessageFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      messageId,
+      feedback,
+    }: {
+      conversationId: number;
+      messageId: number;
+      feedback: MessageFeedbackPayload["feedback"];
+    }) => {
+      const { data } = await api.post<Message>(
+        `/conversations/${conversationId}/messages/${messageId}/feedback`,
+        { feedback },
+      );
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["conversations", variables.conversationId, "messages"],
+      });
     },
   });
 }

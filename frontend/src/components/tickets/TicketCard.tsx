@@ -6,6 +6,7 @@
   Collapse,
   Group,
   Paper,
+  Progress,
   Select,
   Stack,
   Text,
@@ -19,9 +20,15 @@ import {
   IconPlayerPlay,
   IconSparkles,
 } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { getApiError } from "../../api/client";
+import {
+  formatFriendlyDeadline,
+  formatOperatorDeadline,
+  getDeadlineColor,
+  getDeadlineStatus,
+} from "../../lib/sla";
 import { useResponseTemplates } from "../../api/responseTemplates";
 import type { ResponseTemplate, Ticket, UserRole } from "../../api/types";
 import {
@@ -93,6 +100,52 @@ function renderTemplate(template: ResponseTemplate, ticket: Ticket) {
   });
 }
 
+/** Прогресс-бар SLA: «осталось Xч из Yч» + дружелюбный срок. Тикает раз в минуту. */
+function SlaProgress({ ticket }: { ticket: Ticket }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  if (!ticket.sla_deadline_at) {
+    return null;
+  }
+  const opts = { breached: ticket.is_sla_breached, now };
+  const status = getDeadlineStatus(ticket.sla_deadline_at, opts);
+  if (!status) {
+    return null;
+  }
+  const color = getDeadlineColor(status);
+  const friendly = formatFriendlyDeadline(ticket.sla_deadline_at, opts);
+  const relative = formatOperatorDeadline(ticket.sla_deadline_at, opts);
+
+  const startMs = ticket.sla_started_at ? new Date(ticket.sla_started_at).getTime() : NaN;
+  const endMs = new Date(ticket.sla_deadline_at).getTime();
+  let pct: number;
+  if (!Number.isNaN(startMs) && endMs > startMs) {
+    pct = Math.min(100, Math.max(0, ((now.getTime() - startMs) / (endMs - startMs)) * 100));
+  } else {
+    pct = status === "breached" ? 100 : 0;
+  }
+
+  return (
+    <div className="sla-progress">
+      <Group justify="space-between" gap="xs" wrap="nowrap">
+        <Text size="xs" fw={600} c={color}>
+          {status === "breached" ? "Срок ответа истёк" : `Ответим ${friendly}`}
+        </Text>
+        {relative && (
+          <Text size="xs" c="dimmed">
+            {relative}
+          </Text>
+        )}
+      </Group>
+      <Progress value={pct} size="sm" radius="xl" color={color} mt={4} />
+    </div>
+  );
+}
+
 export function TicketCard({
   ticket,
   currentUserRole,
@@ -144,7 +197,6 @@ export function TicketCard({
     resolveTicket.error ??
     createComment.error ??
     comments.error;
-  const slaDeadline = formatDateTime(ticket.sla_deadline_at);
   const createdAt = formatDateTime(ticket.created_at);
 
   const templates = useResponseTemplates({
@@ -214,9 +266,9 @@ export function TicketCard({
 
   return (
     <Paper className="ticket-card" withBorder>
-      <Stack gap="xs">
+      <Stack gap={6}>
         <Group justify="space-between" align="start" wrap="nowrap">
-          <Group gap="sm" align="flex-start" style={{ flex: 1, minWidth: 0 }}>
+            <Group gap={8} align="flex-start" style={{ flex: 1, minWidth: 0 }}>
             {selectable && (
               <Checkbox
                 checked={selected ?? false}
@@ -273,11 +325,6 @@ export function TicketCard({
           )}
           <Badge variant="light">{getDepartmentLabel(ticket.department)}</Badge>
           <Badge variant="light">{getTicketPriorityLabel(ticket)}</Badge>
-          {isOperator && slaDeadline && (
-            <Badge color={ticket.is_sla_breached ? "red" : "yellow"} variant="light">
-              SLA {ticket.is_sla_breached ? "просрочен" : "до"} {slaDeadline}
-            </Badge>
-          )}
           {(ticket.reopen_count ?? 0) > 0 && (
             <Badge color="orange" variant="light">
               Повторно открыт: {ticket.reopen_count}
@@ -290,6 +337,8 @@ export function TicketCard({
           )}
         </Group>
 
+        {ticket.confirmed_by_user && !isClosed && <SlaProgress ticket={ticket} />}
+
         {mutationError && (
           <Alert color="red" variant="light">
             {getApiError(mutationError)}
@@ -297,7 +346,7 @@ export function TicketCard({
         )}
 
         {canOperate && (
-          <Stack gap="xs">
+          <Stack gap={6}>
             <Group justify="flex-end">
               <Button
                 size="xs"
@@ -311,12 +360,12 @@ export function TicketCard({
             </Group>
 
             <Collapse in={aiPanelOpen}>
-              <Paper withBorder p="sm" radius="sm" bg="var(--mantine-color-violet-light)">
+              <Paper withBorder p={8} radius="sm" bg="var(--mantine-color-violet-light)">
                 <AiAssistPanel ticketId={ticket.id} onInsertDraft={handleInsertDraft} />
               </Paper>
             </Collapse>
 
-            <Group gap="md" justify="flex-end">
+            <Group gap={8} justify="flex-end">
               <Checkbox
                 size="xs"
                 label="Ответ AI подошёл"
@@ -383,7 +432,7 @@ export function TicketCard({
               </Button>
             </Group>
             <Collapse in={rerouteOpen}>
-              <Stack className="ticket-reroute-panel" gap="xs">
+              <Stack className="ticket-reroute-panel" gap={6}>
                 <Group grow align="start">
                   <Select
                     label="Новый отдел"
@@ -498,7 +547,7 @@ export function TicketCard({
         )}
 
         {canComment && (
-          <Stack gap="xs">
+          <Stack gap={6}>
             <Group justify="flex-end">
               <Button
                 size="xs"
@@ -511,7 +560,7 @@ export function TicketCard({
             </Group>
 
             {commentsOpen && (
-              <Stack className="ticket-comments" gap="xs">
+              <Stack className="ticket-comments" gap={6}>
                 {comments.data?.length ? (
                   comments.data.map((comment) => (
                     <div className="ticket-comment" key={comment.id}>

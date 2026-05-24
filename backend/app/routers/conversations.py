@@ -26,6 +26,7 @@
 import asyncio
 import logging
 from datetime import UTC, datetime
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -47,6 +48,7 @@ from app.services.ai_classifier import classify_ticket, classify_ticket_heuristi
 from app.services.ai_extract import extract_steps_tried_heuristic
 from app.services.ai_jobs import enqueue_ai_response_job, notify_ai_jobs_channel
 from app.services.audit import log_event
+from app.services.conversation_draft import refresh_pending_ticket_from_conversation
 from app.services.request_context import build_request_context
 from app.services.routing import assign_agent
 from app.services.ticket_body import (
@@ -123,6 +125,14 @@ class MessageRead(BaseModel):
     ai_confidence: float | None = None
     ai_escalate: bool | None = None
     requires_escalation: bool | None = None
+    user_feedback: str | None = None
+    created_at: datetime | None = None
+
+
+class MessageFeedbackPayload(BaseModel):
+    """Оценка пользователем AI-ответа: помог / не помог."""
+
+    feedback: Literal["helped", "not_helped"]
 
 
 class AddMessageResponse(BaseModel):
@@ -311,6 +321,7 @@ async def add_message(
     db.add(user_message)
     await db.flush()
     await db.refresh(user_message)
+    await refresh_pending_ticket_from_conversation(db, conversation_id, creator=current_user)
 
     conversation.status = "ai_processing"
     job = await enqueue_ai_response_job(db, conversation_id)
@@ -353,6 +364,47 @@ async def get_messages(
         .order_by(Message.created_at.asc(), Message.id.asc())
     )
     return result.scalars().all()
+
+
+# ── POST /conversations/{id}/messages/{message_id}/feedback ───────────────────
+
+
+@router.post(
+    "/{conversation_id}/messages/{message_id}/feedback",
+    response_model=MessageRead,
+    summary="Оценить AI-ответ (помог / не помог)",
+    description=(
+        "Сохраняет оценку пользователя по конкретному AI-сообщению. "
+        "Работает для любых ответов AI, в том числе без статьи KB — это "
+        "общая петля качества. Повторный вызов перезаписывает оценку."
+    ),
+)
+async def submit_message_feedback(
+    conversation_id: int,
+    message_id: int,
+    payload: MessageFeedbackPayload,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Message:
+    await _get_conversation_for_user(conversation_id, db, current_user)
+
+    result = await db.execute(
+        select(Message).where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+        )
+    )
+    message = result.scalar_one_or_none()
+    if message is None or message.role != "ai":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сообщение не найдено",
+        )
+
+    message.user_feedback = payload.feedback
+    await db.flush()
+    await db.refresh(message)
+    return message
 
 
 # ── POST /conversations/{id}/escalate — 1-click autofill ─────────────────────
@@ -412,7 +464,8 @@ def _find_context_asset(
             if getattr(asset, "id", None) == context.asset_id:
                 return asset
 
-    affected_item = _context_value(context.affected_item, intake_fields.get("affected_item"))
+    explicit_affected_item = _context_value(context.affected_item)
+    affected_item = _context_value(explicit_affected_item, intake_fields.get("affected_item"))
     if affected_item:
         normalized = affected_item.casefold()
         for asset in assets:
@@ -422,7 +475,8 @@ def _find_context_asset(
                 str(getattr(asset, "serial_number", "")).casefold(),
             }:
                 return asset
-        return None
+        if explicit_affected_item:
+            return None
 
     primary_asset = context_defaults.get("primary_asset")
     return primary_asset if primary_asset in assets else None

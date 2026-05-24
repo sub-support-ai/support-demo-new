@@ -8,8 +8,7 @@
   - Регрессионный тест: backend шлёт `messages: list`, а не старый `message: str`.
 
 Все тесты работают без реального AI-сервиса: httpx.AsyncClient мокируется
-на уровне пакета, conftest._isolate_ai_service уже ставит нереальный URL
-(127.0.0.1:1), но mock перехватывает раньше сетевого вызова.
+на уровне пакета, а local fixture ставит моковый HTTP URL, чтобы запрос дошёл до mock.
 """
 
 import json
@@ -21,6 +20,16 @@ import pytest
 
 from app.services.ai_classifier import classify_ticket
 from app.services.conversation_ai import get_ai_answer
+
+
+@pytest.fixture(autouse=True)
+def _use_mocked_http_ai_url(monkeypatch):
+    from app.config import get_settings
+    from app.services import ai_classifier as ai_classifier_module
+
+    monkeypatch.setattr(get_settings(), "AI_SERVICE_URL", "http://ai-service.test")
+    monkeypatch.setattr(ai_classifier_module, "AI_SERVICE_URL", "http://ai-service.test")
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

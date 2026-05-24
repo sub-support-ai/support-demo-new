@@ -2,8 +2,16 @@ import axios, { AxiosError } from "axios";
 
 import type { ApiErrorPayload } from "./types";
 
+function getDefaultApiBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return "http://localhost:8000/api/v1";
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+}
+
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+  import.meta.env.VITE_API_BASE_URL || getDefaultApiBaseUrl();
 export const API_TIMEOUT_MS = Number(
   import.meta.env.VITE_API_TIMEOUT_MS ?? 210000,
 );

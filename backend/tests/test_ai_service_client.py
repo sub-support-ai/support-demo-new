@@ -40,8 +40,8 @@ async def test_get_ai_answer_includes_latency_in_fallback_payload(monkeypatch):
     from app.services.conversation_ai import get_ai_answer
     from app.services.knowledge_base import LATENCY_PAYLOAD_KEY
 
-    # Дохлый URL — функция уйдёт в ConnectError и вернёт fallback.
-    monkeypatch.setattr(get_settings(), "AI_SERVICE_URL", "http://127.0.0.1:1")
+    # Дохлый URL — функция вернёт fallback без реального network I/O.
+    monkeypatch.setattr(get_settings(), "AI_SERVICE_URL", "test://ai-service")
 
     payload = await get_ai_answer(
         conversation_id=1,

@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Container,
+  Group,
   Paper,
   PasswordInput,
   SegmentedControl,
@@ -11,6 +12,8 @@ import {
   Title,
 } from "@mantine/core";
 import { IconLock } from "@tabler/icons-react";
+
+import appIcon from "../../img/tp-icon-removebg-preview.png";
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -102,7 +105,16 @@ export function LoginPage() {
         <form onSubmit={submit}>
           <Stack gap="md">
             <div>
-              <Title order={2}>Точка поддержки</Title>
+              <Group gap="sm" align="center" mb={4}>
+                <img
+                  src={appIcon}
+                  alt=""
+                  width={32}
+                  height={32}
+                  style={{ display: "block", objectFit: "contain" }}
+                />
+                <Title order={2}>Точка поддержки</Title>
+              </Group>
               <Text size="sm" c="dimmed">
                 Вход в контур поддержки
               </Text>

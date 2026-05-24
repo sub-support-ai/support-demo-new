@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: SecretStr = SecretStr(_DEFAULT_JWT_SECRET)
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
+    PASSWORD_BCRYPT_ROUNDS: int = 12
 
     # ── Bootstrap-admin ───────────────────────────────────────────────────
     # Первый пользователь с этим email при регистрации получает role=admin.
@@ -216,6 +217,13 @@ class Settings(BaseSettings):
             raise ValueError("Worker stale running timeout must be greater than 0.")
         return value
 
+    @field_validator("PASSWORD_BCRYPT_ROUNDS")
+    @classmethod
+    def _validate_password_bcrypt_rounds(cls, value: int) -> int:
+        if not 4 <= value <= 31:
+            raise ValueError("PASSWORD_BCRYPT_ROUNDS must be between 4 and 31.")
+        return value
+
     @model_validator(mode="after")
     def __post_init_check__(self) -> "Settings":
         """Кросс-полевые инварианты + проверки production-секретов.
@@ -253,6 +261,11 @@ class Settings(BaseSettings):
             raise RuntimeError(
                 "JWT_SECRET_KEY не задан в .env при APP_ENV=production. "
                 "Сгенерируй длинную случайную строку и положи в переменные окружения."
+            )
+
+        if self.APP_ENV == "production" and self.PASSWORD_BCRYPT_ROUNDS < 12:
+            raise RuntimeError(
+                "PASSWORD_BCRYPT_ROUNDS must be at least 12 when APP_ENV=production."
             )
 
         # 4) AI_SERVICE_API_KEY: симметрично с ai-service. Без ключа в проде

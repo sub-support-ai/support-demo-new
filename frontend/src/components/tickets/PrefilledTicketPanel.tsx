@@ -19,12 +19,14 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconFileText,
+  IconSparkles,
   IconX,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { IntakeState, Ticket, TicketDraftUpdate, UserMe } from "../../api/types";
 import {
+  getCategoryLabel,
   getDepartmentLabel,
   getStatusLabel,
   getTicketPriorityLabel,
@@ -333,8 +335,8 @@ export function PrefilledTicketPanel({
   );
 
   return (
-    <Paper withBorder p="md" radius="md" className="draft-panel">
-      <Stack gap="md">
+    <Paper withBorder p={8} radius="md" className="draft-panel">
+      <Stack gap={6}>
         {/* ── Шапка: только название и индикатор. Статус-badge показываем только
             для НЕ-дефолтных состояний (pending_user — это «в процессе», тривиально). ── */}
         <Group justify="space-between" align="center" wrap="nowrap">
@@ -357,6 +359,27 @@ export function PrefilledTicketPanel({
             </Badge>
           )}
         </Group>
+
+        {/* ── Полоска AI-классификации: показывает, что заявку разобрал AI-диспетчер ── */}
+        {(getCategoryLabel(ticket.ai_category) ||
+          (typeof ticket.ai_confidence === "number" && ticket.ai_confidence > 0)) && (
+          <Group gap={6} align="center" className="ai-classification-strip" wrap="wrap">
+            <IconSparkles size={14} color="var(--mantine-color-violet-6)" />
+            <Text size="xs" c="dimmed">
+              AI распознал
+            </Text>
+            {getCategoryLabel(ticket.ai_category) && (
+              <Badge size="xs" variant="light" color="violet">
+                {getCategoryLabel(ticket.ai_category)}
+              </Badge>
+            )}
+            {typeof ticket.ai_confidence === "number" && ticket.ai_confidence > 0 && (
+              <Text size="xs" c="dimmed">
+                · уверенность {Math.round(ticket.ai_confidence * 100)}%
+              </Text>
+            )}
+          </Group>
+        )}
 
         {/* ── Title ── */}
         <div>
@@ -381,15 +404,15 @@ export function PrefilledTicketPanel({
 
         {/* ── Body ── */}
         <div>
-          <Text size="xs" c="dimmed" fw={600} mb={4}>
+          <Text size="xs" c="dimmed" fw={600} mb={2}>
             ОПИСАНИЕ ДЛЯ АГЕНТА
           </Text>
           {canEdit ? (
             <Textarea
               variant="unstyled"
               autosize
-              minRows={3}
-              maxRows={12}
+              minRows={2}
+              maxRows={10}
               value={body}
               placeholder="Опишите проблему максимально подробно"
               classNames={{ input: "draft-body-input" }}
@@ -442,11 +465,11 @@ export function PrefilledTicketPanel({
 
         {/* ── Контактные данные ── */}
         <div>
-          <Text size="xs" c="dimmed" fw={600} mb={6}>
+          <Text size="xs" c="dimmed" fw={600} mb={2}>
             КОНТАКТНЫЕ ДАННЫЕ
           </Text>
           {canEdit ? (
-            <Stack gap="xs">
+            <Stack gap={6}>
               {/* Имя и email из профиля — показываем как инфо, не просим вводить */}
               <Group gap={6} align="center">
                 <Text size="xs" c="dimmed" style={{ minWidth: 0 }}>
@@ -512,7 +535,7 @@ export function PrefilledTicketPanel({
               </Group>
             </UnstyledButton>
             <Collapse in={extraOpen}>
-              <Stack gap="xs" mt="xs">
+              <Stack gap={6} mt={6}>
                 <Group grow align="start">
                   <TextInput
                     size="xs"
@@ -576,7 +599,7 @@ export function PrefilledTicketPanel({
 
         {/* ── Действия — основное и подсказки ── */}
         {canEdit && (
-          <Stack gap="xs">
+          <Stack gap={6}>
             {!hasRequiredContext && (
               <Text size="xs" c="orange" ta="center">
                 Заполните: {missingRequiredLabels.join(", ")}
@@ -584,7 +607,7 @@ export function PrefilledTicketPanel({
             )}
             <Button
               fullWidth
-              size="md"
+              size="sm"
               color="teal"
               leftSection={<IconCheck size={18} />}
               loading={confirmLoading || saveLoading}

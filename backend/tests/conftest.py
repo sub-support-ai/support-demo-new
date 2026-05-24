@@ -1,4 +1,6 @@
 import os
+import tempfile
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -69,11 +71,15 @@ _ADD_TICKET_SEARCH_VECTOR_SQL = sa.text(
 # По умолчанию используем SQLite, чтобы тесты проходили "из коробки"
 # без поднятого Postgres. При необходимости можно переопределить через env:
 #   TEST_DATABASE_URL=postgresql+asyncpg://...  (например, в CI)
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "sqlite+aiosqlite:///./test.db",
+_TEST_DB_TEMP_DIR = tempfile.TemporaryDirectory(
+    prefix=f"support_demo_test_{os.getpid()}_",
+    ignore_cleanup_errors=True,
 )
+_DEFAULT_SQLITE_DB_PATH = Path(_TEST_DB_TEMP_DIR.name) / "test.db"
+_DEFAULT_TEST_DATABASE_URL = f"sqlite+aiosqlite:///{_DEFAULT_SQLITE_DB_PATH.as_posix()}"
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", _DEFAULT_TEST_DATABASE_URL)
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ["PASSWORD_BCRYPT_ROUNDS"] = os.getenv("TEST_PASSWORD_BCRYPT_ROUNDS", "4")
 
 # App imports must happen after DATABASE_URL is forced to the test database.
 from app.database import Base, get_db
@@ -133,12 +139,12 @@ def _isolate_ai_service(monkeypatch):
     # ai_classifier.py читает URL из модульной переменной, заданной при импорте
     monkeypatch.setattr(
         "app.services.ai_classifier.AI_SERVICE_URL",
-        "http://127.0.0.1:1",
+        "test://ai-service",
     )
     # conversation_ai.py читает URL из get_settings() в момент вызова
     from app.config import get_settings
 
-    monkeypatch.setattr(get_settings(), "AI_SERVICE_URL", "http://127.0.0.1:1")
+    monkeypatch.setattr(get_settings(), "AI_SERVICE_URL", "test://ai-service")
 
 
 @pytest.fixture(autouse=True)

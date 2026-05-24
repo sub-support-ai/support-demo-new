@@ -160,6 +160,14 @@ def test_different_long_passwords_produce_different_hashes():
     assert verify_password(pw_b, stored_a) is False  # ← без SHA-256 было бы True
 
 
+def test_tests_use_fast_password_hash_cost():
+    from app.security import hash_password
+
+    stored = hash_password("Secret123!")
+
+    assert stored.split("$")[2] == "04"
+
+
 @pytest.mark.asyncio
 async def test_register_duplicate_email(client: AsyncClient):
     payload = {
@@ -463,6 +471,7 @@ def test_settings_requires_ai_service_key_in_production():
     # SecretStr — теперь поле обёрнуто, чтобы значение не светилось в логе
     # Pydantic-модели; см. config.py / Блок 12.
     s.JWT_SECRET_KEY = SecretStr("a" * 64)  # валидный ключ — изолируем проверку AI
+    s.PASSWORD_BCRYPT_ROUNDS = 12
     s.AI_SERVICE_API_KEY = None
 
     with pytest.raises(RuntimeError, match="AI_SERVICE_API_KEY"):
@@ -478,10 +487,26 @@ def test_settings_allows_production_when_ai_key_set():
     s = Settings()
     s.APP_ENV = "production"
     s.JWT_SECRET_KEY = SecretStr("a" * 64)
+    s.PASSWORD_BCRYPT_ROUNDS = 12
     s.AI_SERVICE_API_KEY = SecretStr("prod-secret")
 
     # Не должно бросать
     s.__post_init_check__()
+
+
+def test_settings_rejects_low_bcrypt_rounds_in_production():
+    from pydantic import SecretStr
+
+    from app.config import Settings
+
+    s = Settings()
+    s.APP_ENV = "production"
+    s.JWT_SECRET_KEY = SecretStr("a" * 64)
+    s.AI_SERVICE_API_KEY = SecretStr("prod-secret")
+    s.PASSWORD_BCRYPT_ROUNDS = 4
+
+    with pytest.raises(RuntimeError, match="PASSWORD_BCRYPT_ROUNDS"):
+        s.__post_init_check__()
 
 
 def test_settings_allows_development_without_ai_key():

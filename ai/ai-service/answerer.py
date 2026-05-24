@@ -179,8 +179,17 @@ def _message_text(message) -> str:
     return str(getattr(message, "content", "") or "")
 
 
+def _latest_user_message_text(messages: list) -> str:
+    latest = ""
+    for message in messages:
+        role = message.get("role") if isinstance(message, dict) else getattr(message, "role", "")
+        if role == "user":
+            latest = _message_text(message)
+    return latest.strip()
+
+
 def _is_security_context(messages: list) -> bool:
-    text = _normalise("\n".join(_message_text(message) for message in messages))
+    text = _normalise(_latest_user_message_text(messages))
     return any(_normalise(term) in text for term in SECURITY_TRIGGER_TERMS)
 
 

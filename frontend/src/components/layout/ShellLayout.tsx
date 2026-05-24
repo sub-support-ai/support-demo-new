@@ -11,6 +11,7 @@ import {
   ScrollArea,
   Text,
   Title,
+  useMantineColorScheme,
 } from "@mantine/core";
 import { useState } from "react";
 import {
@@ -23,10 +24,13 @@ import {
   IconListCheck,
   IconLogout,
   IconMessageCircle,
+  IconMoon,
   IconRobot,
+  IconSun,
 } from "@tabler/icons-react";
 import { NavLink as RouterNavLink, Outlet, useLocation } from "react-router-dom";
 
+import appIcon from "../../../img/tp-icon-removebg-preview.png";
 import { useMe } from "../../api/auth";
 import {
   useMarkAllNotificationsRead,
@@ -35,10 +39,12 @@ import {
   useNotifications,
 } from "../../api/notifications";
 import { useTickets } from "../../api/tickets";
+import { getRoleLabel } from "../../lib/ticketLabels";
 import { useAuth } from "../../stores/auth";
 
 export function ShellLayout() {
   const { token, logout } = useAuth();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
   const [navbarOpened, setNavbarOpened] = useState(true);
   const [notificationsOpened, setNotificationsOpened] = useState(false);
   const { data: me } = useMe(Boolean(token));
@@ -74,6 +80,7 @@ export function ShellLayout() {
   const requestAlertColor =
     overdueCount > 0 ? "red" : unassignedCount > 0 ? "orange" : "blue";
   const unreadNotificationCount = unreadNotifications.data?.unread_count ?? 0;
+  const isDark = colorScheme === "dark";
 
   return (
     <AppShell
@@ -86,11 +93,30 @@ export function ShellLayout() {
       <AppShell.Header className="app-header">
         <Group justify="space-between" h="100%" px="md">
           <Group gap="sm">
+            <img
+              src={appIcon}
+              alt=""
+              width={30}
+              height={30}
+              style={{ display: "block", objectFit: "contain" }}
+            />
             <Title order={3}>Точка поддержки</Title>
-            {me?.role && <Badge variant="light">{me.role}</Badge>}
+            {me?.role && <Badge variant="light">{getRoleLabel(me.role)}</Badge>}
           </Group>
           <Group gap="sm">
             <Group gap={6} align="center">
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                aria-label={isDark ? "Включить светлую тему" : "Включить тёмную тему"}
+                onClick={() => setColorScheme(isDark ? "light" : "dark")}
+              >
+                {isDark ? (
+                  <IconSun size={18} stroke={1.5} />
+                ) : (
+                  <IconMoon size={18} stroke={1.5} />
+                )}
+              </ActionIcon>
               <Menu
                 width={360}
                 position="bottom-end"
@@ -247,16 +273,21 @@ export function ShellLayout() {
             </AppShell.Section>
           </>
         ) : (
-          <div style={{ display: "flex", justifyContent: "center", paddingTop: 4 }}>
-            <ActionIcon
-              variant="subtle"
-              color="gray"
-              onClick={() => setNavbarOpened(true)}
-              aria-label="Развернуть панель"
-            >
-              <IconChevronRight size={18} stroke={1.5} />
-            </ActionIcon>
-          </div>
+          <>
+            <AppShell.Section grow />
+            <AppShell.Section>
+              <div style={{ display: "flex", justifyContent: "center", paddingBottom: 4 }}>
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setNavbarOpened(true)}
+                  aria-label="Развернуть панель"
+                >
+                  <IconChevronRight size={18} stroke={1.5} />
+                </ActionIcon>
+              </div>
+            </AppShell.Section>
+          </>
         )}
       </AppShell.Navbar>
 

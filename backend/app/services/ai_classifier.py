@@ -128,6 +128,13 @@ async def classify_ticket(ticket_id: int | None, title: str, body: str) -> dict:
     data: dict | object | None = None
     last_reason: str | None = None
     for service_url in _candidate_ai_service_urls():
+        if not service_url.startswith(("http://", "https://")):
+            last_reason = "connect"
+            logger.warning(
+                "AI Service classify URL has unsupported protocol",
+                extra={"ticket_id": ticket_id, "ai_service_url": service_url},
+            )
+            continue
         try:
             async with httpx.AsyncClient(timeout=settings.AI_SERVICE_TIMEOUT_SECONDS) as client:
                 response = await client.post(

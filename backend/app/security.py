@@ -48,7 +48,8 @@ def _prepare_password(password: str) -> bytes:
 
 def hash_password(password: str) -> str:
     """Превратить пароль в bcrypt-хэш для хранения в БД."""
-    return bcrypt.hashpw(_prepare_password(password), bcrypt.gensalt()).decode()
+    salt = bcrypt.gensalt(rounds=settings.PASSWORD_BCRYPT_ROUNDS)
+    return bcrypt.hashpw(_prepare_password(password), salt).decode()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

@@ -38,6 +38,27 @@ import {
 } from "../../lib/sla";
 import { getDepartmentLabel, getStatusLabel } from "../../lib/ticketLabels";
 
+const INTAKE_FIELD_LABELS: Record<string, string> = {
+  requester_name: "имя заявителя",
+  requester_email: "рабочий email",
+  office: "офис или кабинет",
+  affected_item: "что затронуто",
+  symptoms: "что происходит",
+  business_impact: "как это мешает работе",
+  what_tried: "что уже пробовали",
+  what_user_did: "что уже сделали",
+  time_detected: "когда заметили проблему",
+  asset_id: "инвентарный номер",
+  asset_type: "тип оборудования",
+};
+
+function formatMissingFields(fields: string[] | undefined): string {
+  if (!fields?.length) return "уточнений нет";
+  return fields
+    .map((field) => INTAKE_FIELD_LABELS[field] ?? field.replace(/_/g, " "))
+    .join(", ");
+}
+
 // ─── Утилиты ──────────────────────────────────────────────────────────────
 
 function timeGreeting(): string {
@@ -360,7 +381,7 @@ export function EmployeeDashboard({ me }: { me: UserMe }) {
         <Paper className="employee-hero" withBorder p="lg">
           <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
             <Stack gap={4}>
-              <Title order={2}>
+              <Title order={1} fz={32} fw={800} lh={1.1}>
                 {timeGreeting()}, {me.username}!
               </Title>
               <Text size="sm" c="dimmed">
@@ -464,7 +485,7 @@ export function EmployeeDashboard({ me }: { me: UserMe }) {
                   badge="AI ждёт ответа"
                   badgeColor="blue"
                   title={conv.intake_state?.last_question || "AI задал уточняющий вопрос"}
-                  subtitle={`Не хватает данных: ${conv.intake_state?.missing_fields?.join(", ") ?? "—"}`}
+                  subtitle={`Не хватает данных: ${formatMissingFields(conv.intake_state?.missing_fields)}`}
                   to="/chat"
                   ctaLabel="Ответить"
                 />

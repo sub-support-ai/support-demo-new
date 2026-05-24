@@ -8,6 +8,7 @@
   Paper,
   Select,
   SimpleGrid,
+  Stack,
   Tabs,
   Text,
   TextInput,
@@ -120,8 +121,8 @@ const USER_QUEUES: Array<{
   },
   {
     value: "pending_user",
-    label: "Черновики",
-    description: "Черновики ожидают проверки и отправки.",
+    label: "Ожидают подтверждения",
+    description: "AI собрал черновик — проверьте и нажмите «Отправить».",
   },
   {
     value: "resolved",
@@ -215,6 +216,123 @@ function compareTicketsByQueue(left: Parameters<typeof getTicketSortScore>[0], r
   return 0;
 }
 
+type SortMode = "smart" | "newest" | "oldest" | "priority" | "sla";
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: "smart", label: "Умная (по умолчанию)" },
+  { value: "newest", label: "Сначала новые" },
+  { value: "oldest", label: "Сначала старые" },
+  { value: "priority", label: "По приоритету" },
+  { value: "sla", label: "По сроку SLA" },
+];
+
+type SortableTicket = Parameters<typeof getTicketSortScore>[0] & {
+  sla_deadline_at?: string | null;
+};
+
+type TicketGroupId =
+  | "overdue"
+  | "unassigned"
+  | "new"
+  | "in_progress"
+  | "pending_user"
+  | "resolved"
+  | "other";
+
+const TICKET_GROUPS: Array<{
+  id: TicketGroupId;
+  label: string;
+  description: string;
+  color: string;
+}> = [
+  {
+    id: "overdue",
+    label: "Сначала SLA",
+    description: "Просроченные запросы требуют реакции в первую очередь.",
+    color: "red",
+  },
+  {
+    id: "unassigned",
+    label: "Без исполнителя",
+    description: "Нужно назначить ответственного или взять в работу.",
+    color: "orange",
+  },
+  {
+    id: "new",
+    label: "Новые",
+    description: "Запросы подтверждены пользователем и ждут начала обработки.",
+    color: "blue",
+  },
+  {
+    id: "in_progress",
+    label: "В работе",
+    description: "Исполнитель уже начал обработку.",
+    color: "teal",
+  },
+  {
+    id: "pending_user",
+    label: "Ждут пользователя",
+    description: "Черновики ещё не отправлены в отдел.",
+    color: "yellow",
+  },
+  {
+    id: "resolved",
+    label: "Завершены",
+    description: "Решённые и закрытые запросы.",
+    color: "gray",
+  },
+  {
+    id: "other",
+    label: "Остальные",
+    description: "Запросы без отдельного операционного статуса.",
+    color: "gray",
+  },
+];
+
+function getTicketGroupId(ticket: {
+  status: string;
+  confirmed_by_user: boolean;
+  is_sla_breached?: boolean;
+  agent_id?: number | null;
+}): TicketGroupId {
+  if (isActiveTicket(ticket) && ticket.is_sla_breached) return "overdue";
+  if (isActiveTicket(ticket) && ticket.agent_id == null) return "unassigned";
+  if (ticket.status === "confirmed") return "new";
+  if (ticket.status === "in_progress") return "in_progress";
+  if (ticket.status === "pending_user" && !ticket.confirmed_by_user) return "pending_user";
+  if (isResolvedTicket(ticket)) return "resolved";
+  return "other";
+}
+
+function pickTicketComparator(
+  mode: SortMode,
+): (left: SortableTicket, right: SortableTicket) => number {
+  const createdMs = (t: SortableTicket) => {
+    const ms = new Date(t.created_at).getTime();
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+  // Срок SLA: сначала те, у кого дедлайн ближе/просрочен; без дедлайна — в конец.
+  const slaMs = (t: SortableTicket) => {
+    if (!t.sla_deadline_at) return Number.POSITIVE_INFINITY;
+    const ms = new Date(t.sla_deadline_at).getTime();
+    return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+  };
+  switch (mode) {
+    case "newest":
+      return (a, b) => createdMs(b) - createdMs(a);
+    case "oldest":
+      return (a, b) => createdMs(a) - createdMs(b);
+    case "priority":
+      return (a, b) =>
+        getPriorityRank(a.ai_priority, a.user_priority) -
+          getPriorityRank(b.ai_priority, b.user_priority) || createdMs(b) - createdMs(a);
+    case "sla":
+      return (a, b) => slaMs(a) - slaMs(b) || createdMs(b) - createdMs(a);
+    default:
+      return compareTicketsByQueue;
+  }
+}
+
 export function TicketsPage() {
   const { token } = useAuth();
   const me = useMe(Boolean(token));
@@ -225,6 +343,7 @@ export function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [departmentFilter, setDepartmentFilter] = useState<string | null>(null);
   const [slaFilter, setSlaFilter] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("smart");
   const [queue, setQueue] = useState<TicketQueue>("active");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkResult, setBulkResult] = useState<TicketBulkResponse | null>(null);
@@ -295,8 +414,21 @@ export function TicketsPage() {
         (slaFilter === "overdue" && ticket.is_sla_breached) ||
         (slaFilter === "active" && ticket.sla_deadline_at && !ticket.is_sla_breached);
       return matchesCurrentQueue && matchesStatus && matchesDepartment && matchesSla;
-    }).sort(compareTicketsByQueue);
-  }, [activeQueue, departmentFilter, slaFilter, statusFilter, tickets.data]);
+    }).sort(pickTicketComparator(sortMode));
+  }, [activeQueue, departmentFilter, slaFilter, sortMode, statusFilter, tickets.data]);
+
+  const groupedTickets = useMemo(() => {
+    const items = visibleTickets ?? [];
+    return TICKET_GROUPS.map((group) => ({
+      ...group,
+      tickets: items.filter((ticket) => getTicketGroupId(ticket) === group.id),
+    })).filter((group) => group.tickets.length > 0);
+  }, [visibleTickets]);
+  const showGroupedTickets =
+    isOperator &&
+    sortMode === "smart" &&
+    activeQueue !== "resolved" &&
+    groupedTickets.length > 1;
 
   const activeCount = tickets.data?.filter(isActiveTicket).length ?? 0;
   const overdueCount =
@@ -313,9 +445,9 @@ export function TicketsPage() {
     <div className="content-page">
       <Paper className="tickets-panel" withBorder>
         <LoadingOverlay visible={tickets.isLoading || me.isLoading} />
-        <Group justify="space-between" align="flex-start" mb="md" wrap="nowrap" gap="md">
+        <Group justify="space-between" align="flex-start" mb={8} wrap="nowrap" gap={8}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <Title order={2} mb="xs">
+            <Title order={2} mb={4}>
               {title}
             </Title>
             <Text size="sm" c="dimmed">
@@ -345,8 +477,8 @@ export function TicketsPage() {
           <SimpleGrid
             className="ticket-queue-summary"
             cols={{ base: 1, sm: 3 }}
-            spacing="sm"
-            mb="md"
+            spacing={8}
+            mb={8}
           >
             <div className="queue-summary-item">
               <Text size="xs" c="dimmed" fw={600}>
@@ -372,7 +504,7 @@ export function TicketsPage() {
         <Tabs
           value={activeQueue}
           onChange={(value) => value && setQueue(value as TicketQueue)}
-          mb="md"
+          mb={6}
         >
           <Tabs.List>
             {queueOptions.map((item) => (
@@ -388,11 +520,11 @@ export function TicketsPage() {
           </Tabs.List>
         </Tabs>
 
-        <Text size="sm" c="dimmed" mb="md">
+        <Text size="sm" c="dimmed" mb={8}>
           {activeQueueDescription}
         </Text>
 
-        <Group className="ticket-filters" align="end" mb="md">
+        <Group className="ticket-filters" align="end" mb={8}>
           <TextInput
             label="Поиск"
             placeholder="Тема, заявитель, офис, объект"
@@ -420,10 +552,17 @@ export function TicketsPage() {
             clearable
             onChange={setSlaFilter}
           />
+          <Select
+            label="Сортировка"
+            data={SORT_OPTIONS}
+            value={sortMode}
+            allowDeselect={false}
+            onChange={(value) => value && setSortMode(value as SortMode)}
+          />
         </Group>
 
         {error && (
-          <Alert color="red" variant="light" mb="md">
+          <Alert color="red" variant="light" mb={8}>
             {getApiError(error)}
           </Alert>
         )}
@@ -461,8 +600,43 @@ export function TicketsPage() {
               {tickets.data?.length ? "По фильтрам запросов нет" : "Запросов нет"}
             </Text>
           </div>
+        ) : showGroupedTickets ? (
+          <Stack gap={8} className="ticket-groups">
+            {groupedTickets.map((group) => (
+              <section
+                key={group.id}
+                className={`ticket-group ticket-group-${group.color}`}
+              >
+                <Group justify="space-between" gap={6} mb={6} align="flex-start">
+                  <div>
+                    <Group gap="xs">
+                      <Text fw={700}>{group.label}</Text>
+                      <Badge size="sm" color={group.color} variant="light">
+                        {group.tickets.length}
+                      </Badge>
+                    </Group>
+                    <Text size="sm" c="dimmed">
+                      {group.description}
+                    </Text>
+                  </div>
+                </Group>
+                <SimpleGrid cols={{ base: 1, md: 2 }} spacing={8}>
+                  {group.tickets.map((ticket) => (
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      currentUserRole={me.data?.role}
+                      selectable={isOperator}
+                      selected={selectedIds.has(ticket.id)}
+                      onSelect={toggleSelect}
+                    />
+                  ))}
+                </SimpleGrid>
+              </section>
+            ))}
+          </Stack>
         ) : (
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={8}>
             {visibleTickets?.map((ticket) => (
               <TicketCard
                 key={ticket.id}

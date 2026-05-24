@@ -15,6 +15,7 @@ from app.services.ai_fallback import (
     record_ai_fallback,
 )
 from app.services.ai_service_client import ai_service_headers
+from app.services.conversation_draft import refresh_pending_ticket_from_conversation
 from app.services.conversation_intent import (
     ConversationAction,
     detect_conversation_policy,
@@ -74,6 +75,17 @@ _SECURITY_TERMS = (
     "якобы от it",
     "якобы от ит",
 )
+_SECURITY_HANDOFF_TERMS = (
+    "передать",
+    "передайте",
+    "оформ",
+    "запрос",
+    "заявк",
+    "обращен",
+    "безопасност",
+    "специалист",
+    "провер",
+)
 
 _SECURITY_SAFE_ANSWER = (
     "Похоже на фишинг или подозрительное письмо. Не вводите пароль по ссылке "
@@ -84,12 +96,35 @@ _SECURITY_SAFE_ANSWER = (
 
 
 def _is_security_message(history: list[dict[str, str]]) -> bool:
-    text = (
-        " ".join(m.get("content", "") for m in history if m.get("role") == "user")
-        .casefold()
-        .replace("ё", "е")
-    )
+    text = _latest_user_text(history)
     return any(term.replace("ё", "е") in text for term in _SECURITY_TERMS)
+
+
+def _latest_user_text(history: list[dict[str, str]]) -> str:
+    latest = ""
+    for message in history:
+        if message.get("role") == "user":
+            latest = message.get("content", "")
+    return " ".join(latest.casefold().replace("ё", "е").split())
+
+
+def _has_prior_security_context(history: list[dict[str, str]]) -> bool:
+    user_messages = [
+        " ".join(message.get("content", "").casefold().replace("ё", "е").split())
+        for message in history
+        if message.get("role") == "user"
+    ]
+    return any(
+        any(term.replace("ё", "е") in text for term in _SECURITY_TERMS)
+        for text in user_messages[:-1]
+    )
+
+
+def _is_security_handoff_request(history: list[dict[str, str]]) -> bool:
+    latest = _latest_user_text(history)
+    if not latest or not _has_prior_security_context(history):
+        return False
+    return any(term.replace("ё", "е") in latest for term in _SECURITY_HANDOFF_TERMS)
 
 
 # ── ПСЕВДО-СТРИМИНГ ────────────────────────────────────────────────────────────
@@ -379,6 +414,13 @@ async def get_ai_answer(
     last_reason: str | None = None
     try:
         for service_url in service_urls:
+            if not service_url.startswith(("http://", "https://")):
+                last_reason = "connect"
+                logger.warning(
+                    "AI Service URL has unsupported protocol",
+                    extra={"conversation_id": conversation_id, "ai_service_url": service_url},
+                )
+                continue
             try:
                 async with httpx.AsyncClient(timeout=settings.AI_SERVICE_TIMEOUT_SECONDS) as client:
                     response = await client.post(
@@ -470,9 +512,25 @@ async def generate_ai_message(db: AsyncSession, conversation_id: int) -> Message
     # ── Security check — bypass KB, LLM cache, and AI service entirely ────────
     # Проверяем ДО кэша: если старый ответ закэширован с неправильными словами
     # (например при регрессии модели), он никогда не вернётся пользователю.
-    if _is_security_message(history):
+    is_security_message = _is_security_message(history)
+    is_security_handoff = _is_security_handoff_request(history)
+    if is_security_message or is_security_handoff:
+        # Совет по безопасности даём один раз. На последующих ходах (например,
+        # «оформите запрос», «передайте в безопасность») не повторяем ту же
+        # лекцию, а подтверждаем передачу и ведём к черновику — иначе ассистент
+        # «зависает» на одном и том же тексте.
+        already_advised = is_security_handoff or any(
+            message.get("role") == "assistant" for message in history
+        )
+        if already_advised:
+            security_answer = (
+                "Передаю обращение в безопасность. Я подготовил черновик запроса — "
+                "проверьте карточку справа, при необходимости дополните детали и отправьте."
+            )
+        else:
+            security_answer = _SECURITY_SAFE_ANSWER
         ai_payload = {
-            "answer": _SECURITY_SAFE_ANSWER,
+            "answer": security_answer,
             "confidence": 0.95,
             "escalate": True,
             "sources": [],
@@ -495,8 +553,15 @@ async def generate_ai_message(db: AsyncSession, conversation_id: int) -> Message
             conversation.status = "active"
         from app.services.intake_requirements import build_intake_state
 
-        conversation.intake_state = build_intake_state(conversation.intake_state, history)
+        # Явно фиксируем департамент security: иначе intake-классификация
+        # уходит в эвристику (по слову «пароль» → «Сброс пароля»), и черновик
+        # расходится с security-ответом. С department=security карточка
+        # черновика показывает «Инцидент ИБ» и собирает security-поля.
+        conversation.intake_state = build_intake_state(
+            conversation.intake_state, history, department="security"
+        )
         await db.flush()
+        await refresh_pending_ticket_from_conversation(db, conversation_id)
         await db.refresh(ai_message)
         return ai_message
 
@@ -627,6 +692,7 @@ async def generate_ai_message(db: AsyncSession, conversation_id: int) -> Message
         )
 
     await db.flush()
+    await refresh_pending_ticket_from_conversation(db, conversation_id)
 
     # article = KnowledgeArticle(
     # department="IT",

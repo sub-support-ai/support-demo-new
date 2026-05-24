@@ -113,6 +113,12 @@ export interface Message {
   ai_confidence?: number | null;
   ai_escalate?: boolean | null;
   requires_escalation?: boolean | null;
+  user_feedback?: "helped" | "not_helped" | null;
+  created_at?: string | null;
+}
+
+export interface MessageFeedbackPayload {
+  feedback: "helped" | "not_helped";
 }
 
 export interface AddMessageResponse {
