@@ -77,9 +77,17 @@ setup_metrics(app)
 # (браузер сам откажет) — поэтому мы принципиально не поддерживаем "*".
 _settings = get_settings()
 if _settings.CORS_ORIGINS:
+    # Regex-паттерн принимает любые туннельные домены для локальной демонстрации
+    # (localhost.run, trycloudflare.com и т.п.) — URL меняется при каждом
+    # переподключении туннеля, поэтому фиксированный список неудобен.
+    # В production замените на строгий список через CORS_ORIGINS.
+    _tunnel_regex = (
+        r"https://[a-z0-9\-]+\.(localhost\.run|trycloudflare\.com|loca\.lt|ngrok-free\.app|ngrok\.io)"
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_settings.CORS_ORIGINS,
+        allow_origin_regex=_tunnel_regex,
         allow_credentials=True,
         allow_methods=["*"],  # GET, POST, PATCH, DELETE, OPTIONS — для preflight
         allow_headers=["*"],  # в т.ч. Authorization, Content-Type
