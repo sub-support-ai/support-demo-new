@@ -1136,9 +1136,15 @@ body {
 }
 
 [data-mantine-color-scheme="dark"] .attention-card,
-[data-mantine-color-scheme="dark"] .queue-summary-item.warning {
+[data-mantine-color-scheme="dark"] .queue-summary-item.warning,
+[data-mantine-color-scheme="dark"] .metric-card.warning {
   border-color: #6b4c20;
   background: #221a10;
+}
+
+[data-mantine-color-scheme="dark"] .metric-card.success {
+  border-color: #2c5a42;
+  background: #14241c;
 }
 
 [data-mantine-color-scheme="dark"] .queue-summary-item,

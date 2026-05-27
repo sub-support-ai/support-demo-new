@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from app.services.security_terms import SECURITY_INCIDENT_TERMS
+
 
 class ConversationIntent(StrEnum):
     ANSWER = "answer"
@@ -52,26 +54,6 @@ URGENT_TERMS = (
     "горит",
     "дым",
     "искр",
-)
-SECURITY_INCIDENT_TERMS = (
-    "фишинг",
-    "подозрительн",
-    "мошенническ",
-    "просят пароль",
-    "ввел пароль",
-    "ввёл пароль",
-    "перешел по ссылке",
-    "перешёл по ссылке",
-    "открыл вложение",
-    "вирус",
-    "взлом",
-    "взломали",
-    "утечк",
-    "шифровальщик",
-    "ransomware",
-    "malware",
-    "троян",
-    "антивирус",
 )
 SAFETY_RISK_TERMS = (
     "горит",

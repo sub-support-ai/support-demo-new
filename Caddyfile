@@ -1,0 +1,16 @@
+# Caddyfile — HTTPS reverse-proxy для production.
+#
+# Замените YOUR_DOMAIN на ваш домен перед деплоем.
+# Примеры:
+#   demo.example.com          — купленный домен (Cloudflare, Namecheap…)
+#   support-demo.duckdns.org  — бесплатный поддомен DuckDNS
+#
+# Caddy автоматически получит TLS-сертификат от Let's Encrypt.
+# Для этого нужно:
+#   1. A-запись домена → публичный IPv4 сервера (TTL 60–300 с)
+#   2. Порты 80 и 443 открыты в файрволе сервера
+#   3. Порты 80 и 443 открыты в Hetzner Firewall Rules (если используете)
+
+YOUR_DOMAIN {
+    reverse_proxy frontend:80
+}

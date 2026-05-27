@@ -25,79 +25,19 @@ from app.services.knowledge_base import (
     KnowledgeSearchFilters,
     find_knowledge_answer,
 )
+from app.services.security_terms import (
+    PHISHING_TRIGGER_TERMS,
+    SECURITY_HANDOFF_TERMS,
+    SECURITY_SAFE_ANSWER,
+)
 from app.services.service_catalog import CatalogItem, detect_catalog_item, get_catalog_item
 
 logger = logging.getLogger(__name__)
 
-# Зеркало SECURITY_TRIGGER_TERMS из ai/ai-service/answerer.py.
-# Backend проверяет это ДО обращения к LLM-кэшу и AI-сервису,
-# чтобы кэшированный некорректный ответ никогда не вернулся пользователю.
-_SECURITY_TERMS = (
-    "фишинг",
-    "подозрительное письмо",
-    "подозрительная ссылка",
-    "странная ссылка",
-    "вредоносная ссылка",
-    "мошенническое письмо",
-    "просят пароль",
-    "требуют пароль",
-    "ввести пароль",
-    "ввести пароль по ссылке",
-    "ввел пароль",
-    "ввёл пароль",
-    "вводить пароль",
-    "перешел по ссылке",
-    "перешёл по ссылке",
-    "перейти по ссылке",
-    "пройти по ссылке",
-    "открыл ссылку",
-    "ссылку открыл",
-    "открыл вложение",
-    "компрометация",
-    "скомпрометирован",
-    "письмо со ссылкой",
-    "письмо с ссылкой",
-    "письмо с просьбой",
-    "письмо с требованием",
-    "прислали ссылку",
-    "пришла ссылка",
-    "просят перейти",
-    "нажмите на ссылку",
-    "перейдите по ссылке",
-    "подтвердите данные",
-    "подтвердите пароль",
-    "верифицируйте",
-    "проверьте аккаунт",
-    "угон аккаунта",
-    "взломали почту",
-    "взломали аккаунт",
-    "не вводите пароль",
-    "якобы от it",
-    "якобы от ит",
-)
-_SECURITY_HANDOFF_TERMS = (
-    "передать",
-    "передайте",
-    "оформ",
-    "запрос",
-    "заявк",
-    "обращен",
-    "безопасност",
-    "специалист",
-    "провер",
-)
-
-_SECURITY_SAFE_ANSWER = (
-    "Похоже на фишинг или подозрительное письмо. Не вводите пароль по ссылке "
-    "и не открывайте вложения. Если уже перешли по вредоносной ссылке или ввели "
-    "пароль, это может быть компрометация учётной записи. "
-    "Сохраните письмо и передайте его специалисту для проверки."
-)
-
 
 def _is_security_message(history: list[dict[str, str]]) -> bool:
     text = _latest_user_text(history)
-    return any(term.replace("ё", "е") in text for term in _SECURITY_TERMS)
+    return any(term.replace("ё", "е") in text for term in PHISHING_TRIGGER_TERMS)
 
 
 def _latest_user_text(history: list[dict[str, str]]) -> str:
@@ -115,7 +55,7 @@ def _has_prior_security_context(history: list[dict[str, str]]) -> bool:
         if message.get("role") == "user"
     ]
     return any(
-        any(term.replace("ё", "е") in text for term in _SECURITY_TERMS)
+        any(term.replace("ё", "е") in text for term in PHISHING_TRIGGER_TERMS)
         for text in user_messages[:-1]
     )
 
@@ -124,7 +64,7 @@ def _is_security_handoff_request(history: list[dict[str, str]]) -> bool:
     latest = _latest_user_text(history)
     if not latest or not _has_prior_security_context(history):
         return False
-    return any(term.replace("ё", "е") in latest for term in _SECURITY_HANDOFF_TERMS)
+    return any(term.replace("ё", "е") in latest for term in SECURITY_HANDOFF_TERMS)
 
 
 # ── ПСЕВДО-СТРИМИНГ ────────────────────────────────────────────────────────────
@@ -528,7 +468,7 @@ async def generate_ai_message(db: AsyncSession, conversation_id: int) -> Message
                 "проверьте карточку справа, при необходимости дополните детали и отправьте."
             )
         else:
-            security_answer = _SECURITY_SAFE_ANSWER
+            security_answer = SECURITY_SAFE_ANSWER
         ai_payload = {
             "answer": security_answer,
             "confidence": 0.95,
@@ -693,15 +633,6 @@ async def generate_ai_message(db: AsyncSession, conversation_id: int) -> Message
 
     await db.flush()
     await refresh_pending_ticket_from_conversation(db, conversation_id)
-
-    # article = KnowledgeArticle(
-    # department="IT",
-    # title="Автоматический ответ", # Явно задаём обязательное поле
-    # body="Результат обработки...",
-    # is_active=True
-    # )
-    # db.add(article)
-    # await db.flush()  # → Данные валидны, ошибка не возникнет
 
     await db.refresh(ai_message)
     return ai_message

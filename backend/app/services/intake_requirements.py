@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.services.security_terms import INTAKE_SECURITY_TERMS as _SECURITY_TERMS
+
 COMMON_REQUIRED_FIELDS = [
     "requester_name",
     "requester_email",
@@ -105,16 +107,6 @@ _AFFECTED_ITEMS = (
     ("пропуск", ("пропуск", "турникет")),
 )
 
-_SECURITY_TERMS = (
-    "фишинг",
-    "утеч",
-    "dlp",
-    "подозр",
-    "mfa",
-    "пароль укра",
-    "взлом",
-    "инцидент иб",
-)
 _TRIED_TERMS = (
     "пробовал",
     "пробовала",

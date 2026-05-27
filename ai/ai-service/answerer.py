@@ -118,6 +118,10 @@ SECURITY-ОТВЕТЫ:
 }}
 """
 
+# ВНИМАНИЕ: намеренное зеркало PHISHING_TRIGGER_TERMS из
+# backend/app/services/security_terms.py. AI-сервис — отдельный процесс со
+# своим venv и не может импортировать backend, поэтому список продублирован.
+# При изменении держите оба списка в синхроне (см. тот модуль — он канонический).
 SECURITY_TRIGGER_TERMS = (
     "фишинг",
     "подозрительное письмо",
@@ -168,6 +172,29 @@ SECURITY_SAFE_ANSWER = (
     "Сохраните письмо и передайте его специалисту для проверки."
 )
 
+# Термины «передай / оформи запрос / в безопасность» — сигнал, что пользователь
+# уже получил совет и теперь хочет завести обращение. Зеркало
+# _SECURITY_HANDOFF_TERMS из backend/app/services/conversation_ai.py.
+SECURITY_HANDOFF_TERMS = (
+    "передать",
+    "передайте",
+    "оформ",
+    "запрос",
+    "заявк",
+    "обращен",
+    "безопасност",
+    "специалист",
+    "провер",
+)
+
+# Ответ на ПОВТОРНЫЙ security-ход: совет уже дан, не повторяем лекцию, а
+# подтверждаем передачу и ведём к черновику — иначе ассистент «залипает»
+# на одном и том же тексте.
+SECURITY_HANDOFF_ANSWER = (
+    "Передаю обращение в безопасность. Я подготовил черновик запроса — "
+    "проверьте карточку справа, при необходимости дополните детали и отправьте."
+)
+
 
 def _normalise(text: str) -> str:
     return " ".join(text.casefold().replace("ё", "е").split())
@@ -179,11 +206,16 @@ def _message_text(message) -> str:
     return str(getattr(message, "content", "") or "")
 
 
+def _message_role(message) -> str:
+    if isinstance(message, dict):
+        return str(message.get("role") or "")
+    return str(getattr(message, "role", "") or "")
+
+
 def _latest_user_message_text(messages: list) -> str:
     latest = ""
     for message in messages:
-        role = message.get("role") if isinstance(message, dict) else getattr(message, "role", "")
-        if role == "user":
+        if _message_role(message) == "user":
             latest = _message_text(message)
     return latest.strip()
 
@@ -193,9 +225,39 @@ def _is_security_context(messages: list) -> bool:
     return any(_normalise(term) in text for term in SECURITY_TRIGGER_TERMS)
 
 
-def _security_response() -> dict:
+def _has_prior_security_context(messages: list) -> bool:
+    """Есть ли security-термин в ПРЕДЫДУЩИХ сообщениях пользователя (не последнем)."""
+    user_texts = [
+        _normalise(_message_text(message))
+        for message in messages
+        if _message_role(message) == "user"
+    ]
+    return any(
+        any(_normalise(term) in text for term in SECURITY_TRIGGER_TERMS)
+        for text in user_texts[:-1]
+    )
+
+
+def _is_security_handoff(messages: list) -> bool:
+    """Пользователь уже в security-контексте и теперь просит оформить/передать запрос."""
+    latest = _normalise(_latest_user_message_text(messages))
+    if not latest or not _has_prior_security_context(messages):
+        return False
+    return any(_normalise(term) in latest for term in SECURITY_HANDOFF_TERMS)
+
+
+def _has_prior_assistant(messages: list) -> bool:
+    return any(_message_role(message) in ("assistant", "ai") for message in messages)
+
+
+def _security_response(messages: list) -> dict:
+    # Совет по безопасности даём один раз. На повторных security-ходах
+    # («оформите запрос», «передайте в безопасность») не повторяем лекцию,
+    # а подтверждаем передачу и ведём к черновику.
+    already_advised = _is_security_handoff(messages) or _has_prior_assistant(messages)
+    answer = SECURITY_HANDOFF_ANSWER if already_advised else SECURITY_SAFE_ANSWER
     return {
-        "answer": SECURITY_SAFE_ANSWER,
+        "answer": answer,
         "confidence": 0.95,
         "escalate": True,
         "sources": [],
@@ -214,8 +276,8 @@ def generate_answer(conversation_id: int, messages: list) -> dict:
     Возвращает dict с ключами:
         answer, confidence, escalate, sources, model_version
     """
-    if _is_security_context(messages):
-        return _security_response()
+    if _is_security_context(messages) or _is_security_handoff(messages):
+        return _security_response(messages)
 
     # Строим историю диалога для модели
     # Системный промпт добавляем сами — клиент его не присылает

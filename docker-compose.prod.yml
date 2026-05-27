@@ -1,0 +1,73 @@
+# docker-compose.prod.yml — production overlay.
+#
+# Применяется ПОВЕРХ базового docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Требует Docker Compose ≥ 2.24 (ships with Docker Engine 26+, Ubuntu 22.04+).
+#
+# Что меняет относительно docker-compose.yml:
+#   frontend   — убирает прямой проброс :80 на хост; трафик идёт через Caddy
+#   ai-service — собирается из исходников ai/ai-service; подключается к ollama
+#   ollama     — добавляет LLM-сервис внутри compose-сети (CPU-only)
+#   caddy      — добавляет HTTPS reverse-proxy с автоматическим Let's Encrypt
+
+services:
+
+  # Убираем прямую публикацию :80 — весь HTTP/HTTPS идёт через Caddy.
+  # !reset [] очищает список портов из базового файла.
+  frontend:
+    ports: !reset []
+
+  # Собираем ai-service локально вместо prebuilt-образа;
+  # подключаем к ollama внутри compose-сети.
+  ai-service:
+    build:
+      context: ai/ai-service
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_TIMEOUT_SECONDS: "180"
+      OLLAMA_KEEP_ALIVE: "1h"
+      APP_ENV: production
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  # ── Ollama (CPU LLM runtime) ───────────────────────────────────────────────
+  # Модели хранятся в томе ollama_data — не скачиваются при каждом перезапуске.
+  # После первого запуска стека: bash scripts/warmup_ollama.sh
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      # `ollama list` подключается к локальному демону. Успех = демон готов.
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ── Caddy (HTTPS + Let's Encrypt) ─────────────────────────────────────────
+  # Читает Caddyfile из корня репозитория. Сертификаты хранятся в томе caddy_data.
+  # DNS A-запись домена должна указывать на IP сервера ДО первого запуска.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3 / QUIC
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+
+volumes:
+  ollama_data:
+  caddy_data:
+  caddy_config:
