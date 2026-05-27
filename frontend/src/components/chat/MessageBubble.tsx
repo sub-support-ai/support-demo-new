@@ -238,7 +238,13 @@ function KnowledgeFeedbackActions({ message }: { message: Message }) {
   );
 }
 
-function MessageFeedbackActions({ message }: { message: Message }) {
+function MessageFeedbackActions({
+  message,
+  onActionPrompt,
+}: {
+  message: Message;
+  onActionPrompt?: (text: string) => void | Promise<void>;
+}) {
   const submitFeedback = useSubmitMessageFeedback();
   const [selected, setSelected] = useState<"helped" | "not_helped" | null>(
     message.user_feedback ?? null,
@@ -258,12 +264,34 @@ function MessageFeedbackActions({ message }: { message: Message }) {
     }
   }
 
-  if (selected) {
+  if (selected === "helped") {
     return (
       <Group gap={6} mt="xs" align="center">
         <Text size="xs" c="dimmed">
-          Спасибо за оценку
+          Рад помочь 👍
         </Text>
+      </Group>
+    );
+  }
+
+  if (selected === "not_helped") {
+    return (
+      <Group gap={6} mt="xs" align="center" wrap="wrap">
+        <Text size="xs" c="dimmed">
+          Понял, ответ не помог.
+        </Text>
+        {onActionPrompt && (
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="orange"
+            onClick={() =>
+              onActionPrompt("Ответ не помог, хочу создать запрос к специалисту.")
+            }
+          >
+            Создать запрос
+          </Button>
+        )}
       </Group>
     );
   }
@@ -341,7 +369,7 @@ export function MessageBubble({
           (hasKbArticle ? (
             <KnowledgeFeedbackActions message={message} />
           ) : (
-            <MessageFeedbackActions message={message} />
+            <MessageFeedbackActions message={message} onActionPrompt={onActionPrompt} />
           ))}
       </Paper>
     </div>

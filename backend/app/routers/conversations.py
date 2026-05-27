@@ -49,6 +49,7 @@ from app.services.ai_extract import extract_steps_tried_heuristic
 from app.services.ai_jobs import enqueue_ai_response_job, notify_ai_jobs_channel
 from app.services.audit import log_event
 from app.services.conversation_draft import refresh_pending_ticket_from_conversation
+from app.services.quality_signals import refresh_article_quality_grade
 from app.services.request_context import build_request_context
 from app.services.routing import assign_agent
 from app.services.ticket_body import (
@@ -403,6 +404,28 @@ async def submit_message_feedback(
 
     message.user_feedback = payload.feedback
     await db.flush()
+
+    # Негативный сигнал → помечаем KB-статьи из этого диалога как not_helped
+    # и сразу пересчитываем их quality grade (не ждём фоновой job).
+    # Это замыкает петлю качества: если AI дал плохой ответ на основе статьи —
+    # статья получает штраф в RAG-ранжировании.
+    if payload.feedback == "not_helped":
+        kb_result = await db.execute(
+            select(KnowledgeArticleFeedback).where(
+                KnowledgeArticleFeedback.conversation_id == conversation_id,
+                KnowledgeArticleFeedback.feedback.is_(None),
+            )
+        )
+        kb_feedbacks = list(kb_result.scalars().all())
+        affected_articles: set[int] = set()
+        for fb in kb_feedbacks:
+            fb.feedback = "not_helped"
+            affected_articles.add(fb.article_id)
+        if affected_articles:
+            await db.flush()
+            for article_id in affected_articles:
+                await refresh_article_quality_grade(article_id, db)
+
     await db.refresh(message)
     return message
 

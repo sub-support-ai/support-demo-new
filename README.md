@@ -191,3 +191,41 @@ docker compose -f docker-compose.dev.yml down -v
 ```
 
 `-v` удалит volume с базой. Для обычного завершения — без `-v`.
+
+
+
+Инструкция: запуск с другого компьютера
+1. Установи зависимости
+Docker Desktop
+Node.js 20+
+Git
+2. Склонируй проект
+git clone https://github.com/<твой-юзернейм>/support-demo.git
+cd support-demo
+3. Скопируй .env
+Перенеси файл backend/.env со своего ноутбука на новый комп (через флешку, Telegram себе, Google Drive — как удобно). Положи в backend/.env.
+
+4. Скачай frpc
+cd ~
+Invoke-WebRequest -Uri "https://github.com/fatedier/frp/releases/download/v0.61.1/frp_0.61.1_windows_amd64.zip" -OutFile "frp.zip"
+Add-MpPreference -ExclusionPath "$env:USERPROFILE\frp"
+Expand-Archive frp.zip -DestinationPath frp -Force
+cd frp\frp_0.61.1_windows_amd64
+5. Создай конфиг frpc
+$content = "serverAddr = `"158.160.167.34`"`nserverPort = 7000`n`n[[proxies]]`nname = `"web`"`ntype = `"http`"`nlocalPort = 5173`ncustomDomains = [`"supportpoint.duckdns.org`"]`n"
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText("$PWD\frpc.toml", $content, $utf8NoBom)
+6. Запуск (каждый раз)
+Терминал 1 — стек:
+
+cd C:\путь\до\support-demo
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+Терминал 2 — туннель (после того как появится Backend OK):
+
+cd ~\frp\frp_0.61.1_windows_amd64
+.\frpc.exe -c frpc.toml
+Сайт доступен по https://supportpoint.duckdns.org
+
+Остановить
+Закрой frpc (Ctrl+C) — сайт становится недоступен
+Домен и VPS при этом продолжают работать, просто некуда пересылать

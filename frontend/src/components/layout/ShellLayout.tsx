@@ -28,7 +28,7 @@ import {
   IconRobot,
   IconSun,
 } from "@tabler/icons-react";
-import { NavLink as RouterNavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink as RouterNavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import appIcon from "../../../img/tp-icon-removebg-preview.png";
 import { useMe } from "../../api/auth";
@@ -47,6 +47,7 @@ export function ShellLayout() {
   const { colorScheme, setColorScheme } = useMantineColorScheme();
   const [navbarOpened, setNavbarOpened] = useState(true);
   const [notificationsOpened, setNotificationsOpened] = useState(false);
+  const navigate = useNavigate();
   const { data: me } = useMe(Boolean(token));
   const unreadNotifications = useNotificationUnreadCount(Boolean(token));
   const notifications = useNotifications(Boolean(token) && notificationsOpened);
@@ -167,6 +168,10 @@ export function ShellLayout() {
                           if (!notification.is_read) {
                             markNotificationRead.mutate(notification.id);
                           }
+                          if (notification.target_type === "ticket" && notification.target_id) {
+                            setNotificationsOpened(false);
+                            navigate(`/tickets/${notification.target_id}`);
+                          }
                         }}
                       >
                         <Text size="sm" fw={notification.is_read ? 500 : 700}>
@@ -175,6 +180,11 @@ export function ShellLayout() {
                         <Text size="xs" c="dimmed" lineClamp={2}>
                           {notification.body}
                         </Text>
+                        {notification.target_type === "ticket" && notification.target_id && (
+                          <Text size="xs" c="blue" mt={2}>
+                            Перейти к запросу →
+                          </Text>
+                        )}
                       </Menu.Item>
                     ))
                   ) : (

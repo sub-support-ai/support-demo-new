@@ -58,7 +58,7 @@ export function useMessages(conversationId?: number, aiProcessing = false) {
         return false;
       }
       if (aiProcessing) {
-        return 2000;
+        return 1000;
       }
 
       let latestUserMessageId = 0;
@@ -72,7 +72,7 @@ export function useMessages(conversationId?: number, aiProcessing = false) {
         }
       }
 
-      return latestUserMessageId > latestAiMessageId ? 2000 : false;
+      return latestUserMessageId > latestAiMessageId ? 1000 : false;
     },
   });
 }

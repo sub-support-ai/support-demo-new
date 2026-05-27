@@ -7,5 +7,6 @@ export default defineConfig({
     port: 5173,
     strictPort: true,   // падаем с ошибкой, если порт занят — не молчим
     host: "0.0.0.0",
+    allowedHosts: ["supportpoint.duckdns.org"],
   },
 });
