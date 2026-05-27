@@ -7,7 +7,9 @@ function getDefaultApiBaseUrl(): string {
     return "http://localhost:8000/api/v1";
   }
 
-  return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+  // Relative path — Vite proxy routes /api/* → localhost:8000.
+  // Works both locally (localhost:5173) and through a tunnel (any domain).
+  return "/api/v1";
 }
 
 export const API_BASE_URL =
